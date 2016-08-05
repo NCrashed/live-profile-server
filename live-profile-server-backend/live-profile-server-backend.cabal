@@ -28,7 +28,11 @@ library
   exposed-modules:
     Profile.Live.Server.Application
     Profile.Live.Server.Config
+    Profile.Live.Server.Config.Auth
     Profile.Live.Server.Config.Database
+    Profile.Live.Server.Monad
+    Profile.Live.Server.Models
+    Profile.Live.Server.Utils
     Profile.Live.Server.Utils.DeriveJson
   default-language:    Haskell2010
   build-depends:       
@@ -38,6 +42,8 @@ library
     , file-embed              >= 0.0.10   && < 0.1
     , live-profile-server-api == 0.1.0.0
     , monad-logger            >= 0.3      && < 0.4
+    , mtl                     >= 2.2      && < 2.3
+    , persistent              >= 2.2      && < 2.3
     , persistent-postgresql   >= 2.2      && < 2.6
     , servant                 >= 0.7      && < 0.8
     , servant-auth-token      >= 0.1.1    && <= 0.2

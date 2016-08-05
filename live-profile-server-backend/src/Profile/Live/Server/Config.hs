@@ -24,6 +24,7 @@ import GHC.Generics
 import Network.Wai                          (Middleware)
 import Network.Wai.Middleware.RequestLogger (logStdout, logStdoutDev)
 
+import Profile.Live.Server.Config.Auth
 import Profile.Live.Server.Config.Database
 import Profile.Live.Server.Utils.DeriveJson
 
@@ -47,7 +48,9 @@ data Config = Config {
 , configEnvironment :: Environment
 -- | Location of server static files
 , configStatic :: FilePath 
-} deriving (Generic, Show)
+-- | Configuration of server authorisation
+, configAuth :: AuthSettings
+} deriving (Generic)
 
 $(deriveJSON (derivePrefix "config") ''Config)
 
