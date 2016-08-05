@@ -32,8 +32,12 @@ $(deriveJSON defaultOptions ''Environment)
 -- | The Config of server application that contains all required info to start a 
 -- SQL connection pool and tweakable behavior.
 data Config = Config {
+-- | DB connection configuration
   configDatabase :: DatabaseConfig
-, configEnvironment :: !Environment
+-- | Server operation mode
+, configEnvironment :: Environment
+-- | Location of server static files
+, configStatic :: FilePath 
 } deriving (Generic, Show)
 
 $(deriveJSON (derivePrefix "config") ''Config)
