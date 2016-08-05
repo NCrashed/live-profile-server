@@ -1,0 +1,9 @@
+# Values formatted like "_env:ENV_VAR_NAME:default_value" can be overridden by the specified environment variable.
+
+database:
+  database: "_env:POSTGRES_DB:postgres"
+  host: "_env:POSTGRES_PORT_5432_TCP_ADDR:localhost"
+  port: "_env:POSTGRES_PORT_5432_TCP_PORT:5432"
+  user: "_env:POSTGRES_USER:postgres"
+  password: "_env:POSTGRES_PASSWORD:123456"
+  poolSize: "_env:POSTGRES_POOL_SIZE:8"
