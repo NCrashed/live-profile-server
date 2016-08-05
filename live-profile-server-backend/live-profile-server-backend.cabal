@@ -41,7 +41,6 @@ library
     , persistent-postgresql   >= 2.2      && < 2.6
     , servant                 >= 0.7      && < 0.8
     , servant-auth-token      >= 0.1.1    && <= 0.2
-    , servant-auth-token-api  >= 0.1      && <= 0.2
     , servant-server          >= 0.7      && < 0.8
     , servant-swagger         >= 1.0      && < 1.1
     , swagger2                >= 2.0      && < 2.1
