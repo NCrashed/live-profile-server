@@ -18,5 +18,6 @@ import qualified Servant.Server.Auth.Token.Model as Auth
 -- | Perform safe migrations of database
 doMigrations :: Int -> SqlPersistT IO ()
 doMigrations strength = do
-  runMigrationUnsafe $ return ()
+  runMigrationUnsafe $ do 
+    Auth.migrateAll
   Auth.ensureAdmin strength "admin" "admin" "admin@localhost"
