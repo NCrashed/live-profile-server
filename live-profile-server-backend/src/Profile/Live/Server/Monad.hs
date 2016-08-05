@@ -8,7 +8,10 @@ Stability   : experimental
 Portability : Portable
 -}
 module Profile.Live.Server.Monad(
+  -- * Application state
     AppState(..)
+  , initAppState
+  -- * Application monad
   , App(..)
   -- * Helpers
   -- ** Config helpers
@@ -35,6 +38,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T 
 
 import Profile.Live.Server.Config
+import Profile.Live.Server.Config.Auth 
 
 import Servant.Server.Auth.Token 
 
@@ -47,6 +51,17 @@ data AppState = AppState {
   -- | Used configuration of the server
 , appConfig :: Config 
 }
+
+-- | Make initial application state
+initAppState :: Config -> IO AppState 
+initAppState cfg@Config{..} = do 
+  pool <- makePool configDatabase
+  let acfg = makeAuthConfig pool configAuth 
+  return AppState {
+      appPool = pool 
+    , appAuth = acfg 
+    , appConfig = cfg
+    }
 
 -- | This type represents the effects we want to have for our application.
 -- We wrap the standard Servant monad with 'ReaderT AppState', which gives us

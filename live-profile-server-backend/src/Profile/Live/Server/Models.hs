@@ -13,6 +13,10 @@ module Profile.Live.Server.Models(
 
 import Database.Persist.Sql
 
+import qualified Servant.Server.Auth.Token.Model as Auth
+
 -- | Perform safe migrations of database
-doMigrations :: SqlPersistT IO ()
-doMigrations = runMigrationUnsafe $ return ()
+doMigrations :: Int -> SqlPersistT IO ()
+doMigrations strength = do
+  runMigrationUnsafe $ return ()
+  Auth.ensureAdmin strength "admin" "admin" "admin@localhost"

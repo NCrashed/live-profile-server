@@ -50,6 +50,8 @@ data Config = Config {
 , configStatic :: FilePath 
 -- | Configuration of server authorisation
 , configAuth :: AuthSettings
+-- | Port that the app should listen
+, configPort :: Word 
 } deriving (Generic)
 
 $(deriveJSON (derivePrefix "config") ''Config)
