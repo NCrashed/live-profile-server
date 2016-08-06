@@ -24,8 +24,8 @@
     },
     {
       "name": "GHCJS",
-      "working_dir": "${project_path}/frontend",
-      "shell_cmd": "./compile.sh && firefox http://localhost:8081"    
+      "working_dir": "${project_path}/live-profile-server-frontend",
+      "shell_cmd": "./compile.sh && firefox http://localhost:3000/index.html"    
     },
   ]
 }
