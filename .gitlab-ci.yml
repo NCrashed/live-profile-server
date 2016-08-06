@@ -23,7 +23,8 @@ image-build:
   script:
     # rm cache 
     #- stack clean 
-  
+    - stack --version 
+    
     # workournd a centos SSL bug 
     - export NSS_DISABLE_HW_AES=1 
     
