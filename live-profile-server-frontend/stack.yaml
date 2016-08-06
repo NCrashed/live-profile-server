@@ -40,7 +40,9 @@ packages:
     commit: b52338c2dcd3b0707bc8aff2e171411614d4aedb
 
 extra-deps:
-- ref-tf-0.4
-- these-0.6.1.0
-- ghcjs-dom-0.2.4.0
+- aeson-injector-1.0.3.0
 - diagrams-reflex-0.1
+- ghcjs-dom-0.2.4.0
+- ref-tf-0.4
+- servant-auth-token-api-0.1.2.0
+- these-0.6.1.0
