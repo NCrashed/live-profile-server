@@ -3,3 +3,5 @@ static/all.js
 static/lib.js
 static/out.js
 static/rts.js
+static/api.js
+static/swagger.json

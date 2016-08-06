@@ -36,8 +36,8 @@ server Options{..} = do
   let pool = appPool astate 
   let strength = authSettingsPasswordsStrength $ configAuth config
   runSqlPool (doMigrations strength) pool 
-  generateJavaScript $ configStatic config
-  generateSwagger $ configStatic config
+  generateJavaScript $ configStatic config <> "/api.js"
+  generateSwagger $ configStatic config <> "/swagger.json"
 
   let port = fromIntegral $ configPort config
   let app = liveProfileApp astate

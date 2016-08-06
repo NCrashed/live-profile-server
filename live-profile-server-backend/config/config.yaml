@@ -16,5 +16,5 @@ auth:
   passwordMinLength: 8
   pageSize: 50
 
-static: "./static"
+static: "./static/"
 port: 3000
