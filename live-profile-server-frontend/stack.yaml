@@ -42,4 +42,4 @@ extra-deps:
 - ref-tf-0.4
 - these-0.6.1.0
 - ghcjs-dom-0.2.4.0
-- shine-0.1.0.0
+- diagrams-reflex-0.1
