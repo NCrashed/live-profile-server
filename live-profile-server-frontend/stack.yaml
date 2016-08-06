@@ -1,0 +1,44 @@
+flags: {}
+
+resolver: lts-6.6
+compiler: ghcjs-0.2.0.900006006_ghc-7.10.3
+
+compiler-check: match-exact
+
+setup-info:
+  ghcjs:
+    source:
+      ghcjs-0.2.0.900006006_ghc-7.10.3:
+         url: "https://tolysz.org/ghcjs/lts-6.6-900006006.tar.gz"
+
+allow-newer: true
+
+packages:
+- '.'
+- location:
+    git: https://github.com/ryantrinkle/reflex.git
+    commit: f8338f6b68c9be4e8dcddbbab2098aeffa018535
+# 3a7fb30dde160bc31c0bba4f42f7666ea6ca054a
+  extra-dep: true
+- location:
+    git: https://github.com/ryantrinkle/reflex-dom.git
+    commit: e8b7d31fd2b6a8173e51096b7591ec346e33ad85
+# 5318d581fe3ef7b2b0f70ac352d6c56700124b98
+  extra-dep: true
+- location:
+     git: https://github.com/isomorphism/these.git
+     commit: cf68c46bd049d23938f351da5618e9a09ef1102c
+- location:
+     git: https://github.com/reflex-frp/reflex-dom-contrib.git
+     commit: d07180518168fb68a9ac2ec2df71f670e8d85e6b
+- location:
+    git: https://github.com/NCrashed/ghcjs-servant-client.git
+    commit: 3bb918dd647671c3d755753cd504734499f9f6ab
+- location:
+    git: https://github.com/ghcjs/ghcjs-ffiqq.git
+    commit: b52338c2dcd3b0707bc8aff2e171411614d4aedb
+
+extra-deps:
+- ref-tf-0.4
+- these-0.6.1.0
+- ghcjs-dom-0.2.4.0
