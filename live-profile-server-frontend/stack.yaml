@@ -16,7 +16,6 @@ allow-newer: true
 packages:
 - '.'
 - '../live-profile-server-api'
-- '../live-profile-server-backend'
 - location:
     git: https://github.com/ryantrinkle/reflex.git
     commit: f8338f6b68c9be4e8dcddbbab2098aeffa018535
