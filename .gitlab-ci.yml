@@ -28,7 +28,8 @@ image-build:
     # workournd a centos SSL bug 
     - export NSS_DISABLE_HW_AES=1 
     - export PATH=/home/gitlab-runner/.local/bin:$PATH
-
+    - stack install happy alex 
+    
     # build server
     - cd live-profile-server-backend
     - stack setup
