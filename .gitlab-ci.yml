@@ -24,17 +24,19 @@ image-build:
     # rm cache 
     #- stack clean 
     - stack --version 
-    
+
     # workournd a centos SSL bug 
     - export NSS_DISABLE_HW_AES=1 
-    
+    - export PATH=/home/gitlab-runner/.local/bin:$PATH
+
     # build server
     - cd live-profile-server-backend
     - stack setup
-    - stack install --install-ghc
+    - stack install
     - cp /home/gitlab-runner/.local/bin/live-profile-server ./live-profile-server
 
     # build client
+    - export PATH=$PATH:/home/gitlab-runner/.stack/programs/x86_64-linux/ghc-7.10.3/bin
     - cd ../live-profile-server-frontend
     - stack setup
     - stack install 
