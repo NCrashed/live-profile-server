@@ -29,7 +29,7 @@ image-build:
     - export NSS_DISABLE_HW_AES=1 
     - export PATH=/home/gitlab-runner/.local/bin:$PATH
     - stack install happy alex 
-    
+
     # build server
     - cd live-profile-server-backend
     - stack setup
@@ -52,7 +52,7 @@ image-build:
 image-deploy:
   stage: deploy
   script:
-    - sudo docker run --name live-profile
+    - sudo docker run --name live-profile-postgres
       -v /home/live-profile-server/data:/var/lib/postgresql/data
       -e POSTGRES_PASSWORD=ZooW4eigh8AePoh2ahwa
       --restart=always -d
