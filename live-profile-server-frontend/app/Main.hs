@@ -76,14 +76,16 @@ timeLineVal TimeLine{..} i = timeStart
 -- | Draw timeline
 mkTimeLine :: TimeLine 
   -> Diagram B
-mkTimeLine tl@TimeLine{..} = strutX 2 ||| (tline <> ticks <> labels)
+mkTimeLine tl@TimeLine{..} = strutX 2 ||| (tline <> ticks <> labels) ||| strutX 1
   where 
   n = timeBinsCount
   tline = fromOffsets [V2 (fromIntegral n) 0]
   isBigTick i = i `mod` timeLabelGap == 0
   tick i v = fromVertices $ P <$> [V2 (fromIntegral i) 0, V2 (fromIntegral i) (-v) ]
   ticks = mconcat [ if isBigTick i then tick i 0.2 else tick i 0.1 | i <- [0 .. n]]
-  mkLabel i = D.text (printf "%.2f" (timeLineVal tl i) ++ "s") # moveTo (P $ V2 (fromIntegral i) 0.1)
+  mkLabel i = D.text (printf "%.2f" (timeLineVal tl i) ++ "s") 
+    # moveTo (P $ V2 (fromIntegral i) 0.1)
+    # fontSize 2 
   labels = mconcat [ mkLabel i | i <- [0 .. n], isBigTick i]
 
 mkDia :: P2 Double -> Diagram B
