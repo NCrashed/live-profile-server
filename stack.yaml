@@ -38,9 +38,9 @@ resolver: lts-6.10
 packages:
 - 'live-profile-server-api'
 - 'live-profile-server-backend'
-- '../../servant-auth-token'
-- '../../servant-auth-token-api'
-- '../../aeson-injector'
+#- '../../servant-auth-token'
+#- '../../servant-auth-token-api'
+#- '../../aeson-injector'
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
