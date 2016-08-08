@@ -67,9 +67,14 @@ executable fitclubs-frontend-output
     , ghcjs-dom                      >= 0.2      && < 0.3
     , reflex                         >= 0.4      && < 0.5
     , reflex-dom                     >= 0.3      && < 0.4
+    , text                           >= 1.2      && < 1.3
+    , vector                         >= 0.11     && < 0.12
     , live-profile-server-frontend
 
   default-language:    Haskell2010
+  default-extensions:
+    RecordWildCards
+    TypeFamilies
 
 source-repository head
   type:     git
