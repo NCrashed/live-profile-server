@@ -38,6 +38,7 @@ resolver: lts-6.10
 packages:
 - 'live-profile-server-api'
 - 'live-profile-server-backend'
+- 'servant-rest-derive'
 #- '../../servant-auth-token'
 #- '../../servant-auth-token-api'
 #- '../../aeson-injector'

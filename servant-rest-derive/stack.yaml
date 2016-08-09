@@ -37,15 +37,9 @@ resolver: lts-6.10
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-- '../live-profile-server-api'
-- '../servant-rest-derive'
-
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
-extra-deps:
-- aeson-injector-1.0.4.0
-- servant-auth-token-0.2.0.0
-- servant-auth-token-api-0.2.0.0
+extra-deps: []
 
 # Override default flag values for local packages and extra-deps
 flags: {}
@@ -58,7 +52,7 @@ extra-package-dbs: []
 # 
 # Require a specific version of stack, using version ranges
 # require-stack-version: -any # Default
-# require-stack-version: ">=1.1"
+# require-stack-version: ">=1.2"
 # 
 # Override the architecture used by stack, especially useful on Windows
 # arch: i386
