@@ -31,12 +31,16 @@ import Servant.Swagger
 
 import qualified Data.ByteString.Lazy as BS 
 
+import Profile.Live.Server.API.Connection 
+
 -- | The live profile server consists of documented API and static file serving 
 type LiveProfileAPI = DocumentedLiveProfileAPI :<|> Raw
 -- | The live profile server API that has corresponding swagger documentation.
 type DocumentedLiveProfileAPI = AuthAPI :<|> CoreLiveProfileAPI
 -- | API that is provided by the particular server
-type CoreLiveProfileAPI = Get '[JSON] () -- temp, here would be all core API
+type CoreLiveProfileAPI = 
+       ConnectionAPI 
+  -- :<|> SomeOtherAPI
 
 -- | Helper to pass around 'LiveProfileAPI'
 liveProfileAPI :: Proxy LiveProfileAPI
@@ -59,6 +63,7 @@ generateSwagger path = BS.writeFile path . encode $ toSwagger documentedLiveProf
   & info.license      ?~ "BSD3"
   & host              ?~ "liveprofile.teaspotstudio.ru"
   & applyTagsFor authOperations ["Authorisation" & description ?~ "Authorisation operations"]
+  & applyTagsFor connectionOperations ["Connection" & description ?~ "Connection to profiled app operations"]
 
 -- | Generate js client of API and store it at specified file
 generateJavaScript :: FilePath -> IO ()
