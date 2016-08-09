@@ -1,0 +1,57 @@
+name:                servant-rest-derive-server
+version:             0.1.0.0
+synopsis:            Semi automatic utilities to derive RESTful servers for servant
+description:         Please see README.md
+homepage:            https://github.com/NCrashed/servant-rest-derive#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Anton Gushcha
+maintainer:          ncrashed@gmail.com
+copyright:           (c) 2016 Anton Gushcha
+category:            Web
+build-type:          Simple
+extra-source-files:
+  README.md 
+  CHANGELOG.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:
+    Servant.API.REST.Derive.Server
+  build-depends:       
+      base >= 4.7 && < 5
+    , aeson                     >= 0.11     && < 1.1
+    , aeson-injector            >= 1.0.4    && < 1.1
+    , lens                      >= 4.13     && < 4.14
+    , servant                   >= 0.7      && < 0.8
+    , servant-auth-token        >= 0.2      && < 0.3
+    , servant-auth-token-api    >= 0.2      && < 0.3
+    , servant-rest-derive       >= 0.1      && < 0.2
+    , servant-server            >= 0.7      && < 0.8
+    , swagger2                  >= 2.0      && < 2.2
+    , text                      >= 1.2      && < 1.3
+    , unordered-containers      >= 0.2      && < 0.3
+    , vinyl                     >= 0.5.2    && < 0.6
+
+  default-language:    Haskell2010
+  default-extensions:
+    DataKinds
+    DeriveGeneric
+    FlexibleContexts
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    KindSignatures
+    MultiParamTypeClasses
+    OverloadedStrings
+    RankNTypes
+    ScopedTypeVariables
+    TemplateHaskell
+    TypeFamilies
+    TypeOperators
+    TypeSynonymInstances
+    UndecidableInstances
+
+source-repository head
+  type:     git
+  location: https://github.com/NCrashed/servant-rest-derive

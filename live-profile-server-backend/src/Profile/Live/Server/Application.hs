@@ -19,18 +19,19 @@ module Profile.Live.Server.Application(
 import Control.Monad.Except 
 import Control.Monad.Reader
 import Network.Wai (Application)
-import Servant 
-import Servant.API 
-import Servant.Server 
+import Servant
 import Servant.Server.Auth.Token 
 
 import Profile.Live.Server.API
+import Profile.Live.Server.Application.Connection
 import Profile.Live.Server.Config 
 import Profile.Live.Server.Monad 
 
 -- | Handlers for core API that the server implements
 coreServer :: AppState -> Server CoreLiveProfileAPI
-coreServer app = enter (convertApp app) (return ()) -- temp, here handlers are added
+coreServer app = enter (convertApp app) server 
+  where 
+  server = connectionServer
 
 -- | Implementation of documented server
 documentedServer :: AppState -> Server DocumentedLiveProfileAPI
