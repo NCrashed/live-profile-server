@@ -38,10 +38,15 @@ class HasRESTDB m where
 
 -- | Operations for 'a' to read/insert/update/delete in RDBMS
 class StorableResource m a where 
+  -- | Reading a resource by id
   readResource :: Id a -> SqlPersistT m (Maybe a)
+  -- | Creation of resource
   insertResource :: a -> SqlPersistT m (Id a)
+  -- | Full update of resource
   replaceResource :: Id a -> a -> SqlPersistT m ()
+  -- | Partial update of resource
   patchResource :: Id a -> PatchRec a -> SqlPersistT m ()
+  -- | Cascade deletion of resource
   deleteResource :: Id a -> SqlPersistT m ()
 
 -- | Typeclass that derives server implementation

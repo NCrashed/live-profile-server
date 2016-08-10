@@ -24,10 +24,24 @@ import GHC.Generics
 import GHC.TypeLits 
 import Servant.API 
 import Servant.API.Auth.Token 
+import Text.Read 
+import Web.PathPieces
 
 -- | Unique id of resource
 newtype Id a = Id { unId :: Word } 
-  deriving (Show, Eq, Generic)
+  deriving (Generic)
+
+instance Show (Id a) where 
+  show (Id a) = show a 
+
+instance Read (Id a) where 
+  readPrec = Id <$> readPrec 
+
+instance Eq (Id a) where 
+  (Id a) == (Id b) = a == b 
+
+instance Ord (Id a) where 
+  (Id a) `compare` (Id b) = a `compare` b 
 
 instance ToSchema (Id a) where 
   declareNamedSchema _ = declareNamedSchema (Proxy :: Proxy Word)
@@ -46,6 +60,10 @@ instance ToHttpApiData (Id a) where
 
 instance FromHttpApiData (Id a) where 
   parseUrlPiece = fmap Id . parseUrlPiece
+
+instance PathPiece (Id a) where 
+  fromPathPiece = fmap Id . fromPathPiece
+  toPathPiece (Id i) = toPathPiece i 
 
 -- | Type of action that is permited by a REST API
 data RESTAction = Read | Write | Create | Delete 

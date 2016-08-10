@@ -19,13 +19,17 @@ library
   hs-source-dirs:      src
   exposed-modules:
     Servant.API.REST.Derive.Server
+    Servant.API.REST.Derive.Server.Vinyl
   build-depends:       
       base >= 4.7 && < 5
     , aeson                     >= 0.11     && < 1.1
     , aeson-injector            >= 1.0.4    && < 1.1
     , bytestring                >= 0.10     && < 0.11
+    , cases                     >= 0.1      && < 0.2
+    , http-api-data             >= 0.2      && < 0.3
     , lens                      >= 4.13     && < 4.14
     , mtl                       >= 2.2      && < 2.3
+    , path-pieces               >= 0.2      && < 0.3
     , persistent                >= 2.2      && < 2.3
     , servant                   >= 0.7      && < 0.8
     , servant-auth-token        >= 0.2      && < 0.3
@@ -36,7 +40,9 @@ library
     , text                      >= 1.2      && < 1.3
     , unordered-containers      >= 0.2      && < 0.3
     , vinyl                     >= 0.5.2    && < 0.6
-    
+
+    -- , template-haskell
+    -- , persistent-template
   default-language:    Haskell2010
   default-extensions:
     DataKinds
@@ -48,6 +54,7 @@ library
     MultiParamTypeClasses
     OverloadedStrings
     RankNTypes
+    RecordWildCards
     ScopedTypeVariables
     TemplateHaskell
     TypeFamilies
