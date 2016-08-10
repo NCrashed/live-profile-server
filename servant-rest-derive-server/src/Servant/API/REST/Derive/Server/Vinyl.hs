@@ -33,6 +33,7 @@ import Database.Persist.Sql
 import GHC.TypeLits 
 import Servant.API.REST.Derive
 import Servant.API.REST.Derive.Named
+import Servant.API.REST.Derive.Server
 import Web.HttpApiData
 import Web.PathPieces
 
@@ -225,3 +226,19 @@ instance (
   where 
     toBackendKey = fromIntegral . unId . unVKey
     fromBackendKey = VKey . Id . fromIntegral
+
+instance (PersistEntity (FieldRec fields)) => StorableResource (FieldRec fields) where 
+  -- readResource :: Id a -> SqlPersistT m (Maybe a)
+  readResource = get . VKey 
+
+  -- insertResource :: a -> SqlPersistT m (Id a)
+  insertResource = fmap unVKey . insert
+
+  -- replaceResource :: Id a -> a -> SqlPersistT m ()
+  replaceResource i = replace (VKey i)
+
+  -- patchResource :: Id a -> PatchRec a -> SqlPersistT m ()
+  patchResource = undefined
+
+  -- deleteResource :: Id a -> SqlPersistT m ()
+  deleteResource = delete . VKey

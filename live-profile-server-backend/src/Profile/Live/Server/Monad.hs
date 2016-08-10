@@ -25,12 +25,12 @@ module Profile.Live.Server.Monad(
   , require
   ) where
 
-import Control.Monad.Trans
 import Control.Monad.Except                 (ExceptT, MonadError)
-import Control.Monad.Reader                 
+import Control.Monad.Reader
 import Data.Monoid                          ((<>))
 import Database.Persist.Sql    
 import Servant                              
+import Servant.API.REST.Derive.Server
 import Servant.Server.Auth.Token.Config
 
 import qualified Data.ByteString.Lazy as BS 
@@ -78,6 +78,9 @@ newtype App a = App {
 instance AuthMonad App where 
   getAuthConfig = asks appAuth
   liftAuthAction = App . lift
+
+instance HasRESTDB App where 
+  runRESTDB = runDB
 
 -- | If the value is 'Nothing', throw 400 response
 require :: T.Text -> Maybe a -> App a

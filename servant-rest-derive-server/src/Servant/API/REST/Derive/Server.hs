@@ -34,26 +34,26 @@ type RESTServer a aname m = ServerT (RESTFull a aname) m
 
 -- | Defines server handlers that has access to RDBMS
 class HasRESTDB m where 
-  runRESTDB :: SqlPersistT m a -> m a
+  runRESTDB :: SqlPersistT IO a -> m a
 
 -- | Operations for 'a' to read/insert/update/delete in RDBMS
-class StorableResource m a where 
+class StorableResource a where 
   -- | Reading a resource by id
-  readResource :: Id a -> SqlPersistT m (Maybe a)
+  readResource :: Id a -> SqlPersistT IO (Maybe a)
   -- | Creation of resource
-  insertResource :: a -> SqlPersistT m (Id a)
+  insertResource :: a -> SqlPersistT IO (Id a)
   -- | Full update of resource
-  replaceResource :: Id a -> a -> SqlPersistT m ()
+  replaceResource :: Id a -> a -> SqlPersistT IO ()
   -- | Partial update of resource
-  patchResource :: Id a -> PatchRec a -> SqlPersistT m ()
+  patchResource :: Id a -> PatchRec a -> SqlPersistT IO ()
   -- | Cascade deletion of resource
-  deleteResource :: Id a -> SqlPersistT m ()
+  deleteResource :: Id a -> SqlPersistT IO ()
 
 -- | Typeclass that derives server implementation
 class HasRESTServer a aname m where 
   restServer :: ServerT (RESTFull a aname) m
 
-instance (KnownSymbol aname, HasRESTDB m, StorableResource m a, MonadError ServantErr m, AuthMonad m) 
+instance (KnownSymbol aname, HasRESTDB m, StorableResource a, MonadError ServantErr m, AuthMonad m) 
   => HasRESTServer a aname m where 
   restServer = 
          getRes

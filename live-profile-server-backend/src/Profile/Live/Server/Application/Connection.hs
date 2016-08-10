@@ -3,6 +3,7 @@ module Profile.Live.Server.Application.Connection(
   ) where
 
 import Servant.API.REST.Derive.Server
+import Servant.API.REST.Derive.Server.Vinyl()
 import Servant.Server 
 
 import Profile.Live.Server.API.Connection 
