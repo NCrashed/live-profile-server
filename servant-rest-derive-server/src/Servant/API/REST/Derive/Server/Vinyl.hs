@@ -216,3 +216,12 @@ instance PersistField (Key (FieldRec fields)) where
     PersistInt64 i -> Right . VKey . Id . fromIntegral $ i
     _ -> Left "Expected Int64 value for key"
 
+instance (
+    Named (FieldRec fields) 
+  , ToVinylPersistFields (FieldRec fields)
+  , FromVinylPersistValues (FieldRec fields)
+  , DeriveEntityFields fields
+  ) => ToBackendKey SqlBackend (FieldRec fields) 
+  where 
+    toBackendKey = fromIntegral . unId . unVKey
+    fromBackendKey = VKey . Id . fromIntegral
