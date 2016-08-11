@@ -45,23 +45,24 @@ import GHC.Generics
 -- 
 -- @
 -- data PatchUser = PatchUser {
---   patchUserName :: Maybe (NullablePatch Text)
+--   patchUserName :: NullablePatch Text
 -- }
 -- @
 --
--- >>> encode $ PatchUser Nothing
+-- >>> encode $ PatchUser NoPatch
 -- "{}"
 --
--- >>> encode $ PatchUser (Just NullifyPatch)
+-- >>> encode $ PatchUser NullifyPatch
 -- "{\"nullify\":true}"
 --
--- >>> encode $ PatchUser (Just (ValuePatch "Pupkin"))
+-- >>> encode $ PatchUser (ValuePatch "Pupkin")
 -- "{\"value\":\"Pupkin\"}"
-data NullablePatch a = NullifyPatch | ValuePatch a  
+data NullablePatch a = NoPatch | NullifyPatch | ValuePatch a  
   deriving (Eq, Show, Read, Generic)
 
 instance ToJSON a => ToJSON (NullablePatch a) where 
   toJSON v = case v of 
+    NoPatch -> Null
     NullifyPatch -> object ["nullify" .= True]
     ValuePatch a -> object ["value" .= a]
 
@@ -72,6 +73,7 @@ instance FromJSON a => FromJSON (NullablePatch a) where
       b <- o .: "nullify"
       if b then return NullifyPatch
         else mzero
+  parseJSON Null = pure NoPatch
   parseJSON _ = mzero
 
 instance ToSchema a => ToSchema (NullablePatch a) where 

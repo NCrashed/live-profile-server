@@ -90,7 +90,7 @@ instance (KnownSymbol n, FromJSON a, FromJSON (FieldRec fs)) => FromJSON (FieldR
 -- | Derive vinyl record fields that can be used as partial update payload for given fields record
 type family VinylPatchFields (fields :: [(Symbol, *)]) :: [(Symbol, *)] where
   VinylPatchFields '[] = '[]
-  VinylPatchFields ('(n, Maybe a) ': as) = '(n, Maybe (NullablePatch a)) ': VinylPatchFields as
+  VinylPatchFields ('(n, Maybe a) ': as) = '(n, NullablePatch a) ': VinylPatchFields as
   VinylPatchFields ('(n, a) ': as) = '(n, Maybe a) ': VinylPatchFields as
 
 -- | Wrapper around 'VinylPatchFields' to produce corresponding patch record for a vinyl record
@@ -142,14 +142,13 @@ instance (
     KnownSymbol n
   , RElem '(n, Maybe a) fields i
   , Patchable (FieldRec fields) (FieldRec fs)
-  ) => Patchable (FieldRec fields) (FieldRec ('(n, Maybe (NullablePatch a)) ': fs)) where 
+  ) => Patchable (FieldRec fields) (FieldRec ('(n, NullablePatch a) ': fs)) where 
   applyPatch a (b :& bs) = applyPatch a' bs  
     where 
-    a' = case b of 
-      Field Nothing  -> a
-      Field (Just v) -> case v of 
-        NullifyPatch -> setter Nothing a
-        ValuePatch v' -> setter (Just v') a
+    a' = case b of
+      Field NoPatch -> a
+      Field NullifyPatch -> setter Nothing a
+      Field (ValuePatch v) -> setter (Just v) a
     setter :: Maybe a -> FieldRec fields -> FieldRec fields
     setter v = rput (Field v :: ElField '(n, Maybe a))
   {-# INLINE applyPatch #-}

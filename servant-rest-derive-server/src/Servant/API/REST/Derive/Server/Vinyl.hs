@@ -40,16 +40,26 @@ import Web.HttpApiData
 import Web.PathPieces
 
 -- Here the snippet with dumping TH persistent splines
---import Database.Persist.Quasi
---import Database.Persist.TH
---import Language.Haskell.TH
---import Data.Text 
---
+-- import Database.Persist.Quasi
+-- import Database.Persist.TH
+-- import Language.Haskell.TH
+-- import Data.Text 
+-- 
 -- $(do 
--- let fields = $(persistFileWith lowerCaseSettings "test.persist")
--- reportError . pprint =<< mkMigrate "migrateAll" fields -- mkPersist sqlSettings fields
--- return []
--- )
+--   let fields = $(persistFileWith lowerCaseSettings "test.persist")
+--   reportError . pprint =<< mkMigrate "migrateAll" fields -- mkPersist sqlSettings fields
+--   return []
+--   )
+
+-- | Helper to derive attributes of field for a type
+class DeriveEntityFieldAttr a where 
+  deriveEntityFieldAttr :: Proxy a -> ([Attr], SqlType)
+
+instance {-# OVERLAPPABLE #-} PersistFieldSql a => DeriveEntityFieldAttr a where 
+  deriveEntityFieldAttr p = ([], sqlType p)
+
+instance {-# OVERLAPPING #-} PersistFieldSql a => DeriveEntityFieldAttr (Maybe a) where 
+  deriveEntityFieldAttr _ = (["Maybe"], sqlType (Proxy :: Proxy a))
 
 -- | Helper for defining fields definitions of persistent entity
 class DeriveEntityFields (fields :: [(Symbol, *)]) where 
@@ -74,17 +84,23 @@ class DeriveEntityFields (fields :: [(Symbol, *)]) where
 instance DeriveEntityFields '[] where 
   deriveEntityFields _ = []
 
-instance (KnownSymbol n, Typeable a, PersistFieldSql a, DeriveEntityFields fs) => DeriveEntityFields ('(n, a) ': fs) where 
+instance (
+    KnownSymbol n
+  , Typeable a
+  , DeriveEntityFieldAttr a
+  , DeriveEntityFields fs
+  ) => DeriveEntityFields ('(n, a) ': fs) where 
   deriveEntityFields _ = f : deriveEntityFields (Proxy :: Proxy fs)
     where 
     n = pack $ symbolVal (Proxy :: Proxy n)
     as = pack . show $ typeRep (Proxy :: Proxy a)
+    (attrs, sqlt) = deriveEntityFieldAttr (Proxy :: Proxy a)
     f = FieldDef {
         fieldHaskell = HaskellName n
       , fieldDB = DBName . snakify $ n
       , fieldType = FTTypeCon Nothing as
-      , fieldSqlType = sqlType (Proxy :: Proxy a)
-      , fieldAttrs = []
+      , fieldSqlType = sqlt
+      , fieldAttrs = attrs
       , fieldStrict = True
       , fieldReference = NoReference
       }

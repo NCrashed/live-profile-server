@@ -36,7 +36,7 @@ type Connection = FieldRec '[
     '("name", Text)
   , '("host", Text)
   , '("port", Word)
-  , '("lastUsed", UTCTime)
+  , '("lastUsed", Maybe UTCTime)
   ]
 
 instance Named Connection where 
@@ -53,7 +53,7 @@ instance ToSchema ConnectionPatch where
 
 instance Patchable Connection ConnectionPatch where 
   applyPatch a (ConnectionPatch b) = applyPatch a b
-  
+
 -- | API about connections to remote Haskell applications that we profile
 type ConnectionAPI = "connection" :> RESTFull Connection "connection"
 
