@@ -36,19 +36,19 @@ instance FieldsSchema '[] where
   fieldsSchemaRequired _ = mempty
 
 instance {-# OVERLAPPABLE #-} (KnownSymbol n, ToSchema a, FieldsSchema fs) => FieldsSchema ('(n, a) ': fs) where 
-  fieldsSchemaProperties _ = H.insert n sr $ fieldsSchemaProperties (Proxy :: Proxy fs)
+  fieldsSchemaProperties _ = H.insert n (Inline sr) $ fieldsSchemaProperties (Proxy :: Proxy fs)
     where  
     n = pack $ symbolVal (Proxy :: Proxy n)
-    sr = toSchemaRef (Proxy :: Proxy a) 
+    sr = toSchema (Proxy :: Proxy a) 
   fieldsSchemaRequired _ = n : fieldsSchemaRequired (Proxy :: Proxy fs)
     where  
     n = pack $ symbolVal (Proxy :: Proxy n)
 
 instance {-# OVERLAPPING #-} (KnownSymbol n, ToSchema a, FieldsSchema fs) => FieldsSchema ('(n, Maybe a) ': fs) where 
-  fieldsSchemaProperties _ = H.insert n sr $ fieldsSchemaProperties (Proxy :: Proxy fs)
+  fieldsSchemaProperties _ = H.insert n (Inline sr) $ fieldsSchemaProperties (Proxy :: Proxy fs)
     where  
     n = pack $ symbolVal (Proxy :: Proxy n)
-    sr = toSchemaRef (Proxy :: Proxy (Maybe a)) 
+    sr = toSchema (Proxy :: Proxy (Maybe a)) 
   fieldsSchemaRequired _ = fieldsSchemaRequired (Proxy :: Proxy fs)
 
 instance (Named (FieldRec fields)
