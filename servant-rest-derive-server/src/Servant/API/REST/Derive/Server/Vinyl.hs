@@ -16,6 +16,7 @@ module Servant.API.REST.Derive.Server.Vinyl(
   , FromVinylPersistValues(..)
   , EntityField(DBFieldId, DBField)
   , Key(VKey)
+  , VinylMigration(..)
   ) where
 
 import Cases
@@ -44,14 +45,30 @@ import Web.PathPieces
 --import Data.Text 
 --
 -- $(do 
---  let fields = $(persistFileWith lowerCaseSettings "test.persist")
---  reportError . pprint =<< mkPersist sqlSettings fields
---  return []
---  )
+-- let fields = $(persistFileWith lowerCaseSettings "test.persist")
+-- reportError . pprint =<< mkMigrate "migrateAll" fields -- mkPersist sqlSettings fields
+-- return []
+-- )
 
 -- | Helper for defining fields definitions of persistent entity
 class DeriveEntityFields (fields :: [(Symbol, *)]) where 
   deriveEntityFields :: forall proxy . proxy fields -> [FieldDef]
+
+  deriveEntity :: forall proxy . Named (FieldRec fields) => proxy fields -> EntityDef 
+  deriveEntity _ = EntityDef {
+      entityHaskell = HaskellName name
+    , entityDB = DBName . snakify $ name
+    , entityId = entityIdField name
+    , entityAttrs = []
+    , entityFields = deriveEntityFields (Proxy :: Proxy fields)
+    , entityUniques = []
+    , entityForeigns = []
+    , entityDerives = []
+    , entityExtra = mempty
+    , entitySum = False 
+    }
+    where 
+    name = pack $ getName (Proxy :: Proxy (FieldRec fields))
 
 instance DeriveEntityFields '[] where 
   deriveEntityFields _ = []
@@ -129,20 +146,7 @@ instance (Named (FieldRec fields)
     [] -> Left "Expected value for id"
     (v:_) -> fmap (VKey . Id) . fromPersistValue $ v
 
-  entityDef _ = EntityDef {
-      entityHaskell = HaskellName name
-    , entityDB = DBName . snakify $ name
-    , entityId = entityIdField name
-    , entityAttrs = []
-    , entityFields = deriveEntityFields (Proxy :: Proxy fields)
-    , entityUniques = []
-    , entityForeigns = []
-    , entityDerives = []
-    , entityExtra = mempty
-    , entitySum = False 
-    }
-    where 
-    name = pack $ getName (Proxy :: Proxy (FieldRec fields))
+  entityDef _ = deriveEntity (Proxy :: Proxy fields) 
 
   toPersistFields = toVinylPersistFields
   fromPersistValues = fromVinylPersistValues
@@ -242,3 +246,15 @@ instance (PersistEntity (FieldRec fields)) => StorableResource (FieldRec fields)
 
   -- deleteResource :: Id a -> SqlPersistT m ()
   deleteResource = delete . VKey
+
+-- | Migration deriving for vinyl records
+class VinylMigration a where 
+  migrateVinyl :: forall proxy . proxy a -> Migration 
+
+instance (
+    Named (FieldRec fields) 
+  , DeriveEntityFields fields
+  ) => VinylMigration (FieldRec fields) where
+  migrateVinyl _ = do 
+    let defs = [deriveEntity (Proxy :: Proxy fields)] -- TODO: collect references
+    migrate defs $ deriveEntity (Proxy :: Proxy fields)
