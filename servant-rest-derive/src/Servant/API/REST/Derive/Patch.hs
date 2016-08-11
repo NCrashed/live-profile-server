@@ -10,6 +10,7 @@ Portability : Portable
 -}
 module Servant.API.REST.Derive.Patch(
     NullablePatch(..)
+  , Patchable(..)
   ) where 
 
 import Control.Applicative
@@ -85,3 +86,7 @@ instance ToSchema a => ToSchema (NullablePatch a) where
           ("nullify", boolSch)
         , ("value", ar)]
       & required .~ []
+
+-- | Defines that 'a' is patchable by type b
+class Patchable a b where 
+  applyPatch :: a -> b -> a

@@ -10,6 +10,9 @@ Portability : Portable
 -}
 module Servant.API.REST.Derive.Vinyl(
     FieldsSchema(..)
+  , ToVinylSchema(..)
+  , VinylPatchFields
+  , VinylPatch
   ) where 
 
 import Control.Lens
@@ -18,12 +21,15 @@ import Data.Aeson as A
 import Data.Aeson.Types
 import Data.Proxy
 import Data.Swagger
+import Data.Swagger.Declare
 import Data.Text 
 import Data.Vinyl.Core
 import Data.Vinyl.Derived
+import Data.Vinyl.Lens
 import GHC.TypeLits 
 
 import Servant.API.REST.Derive.Named 
+import Servant.API.REST.Derive.Patch
 
 import qualified Data.HashMap.Strict as H
 
@@ -54,14 +60,7 @@ instance {-# OVERLAPPING #-} (KnownSymbol n, ToSchema a, FieldsSchema fs) => Fie
 instance (Named (FieldRec fields)
         , FieldsSchema fields) 
     => ToSchema (FieldRec fields) where 
-  declareNamedSchema _ = do 
-    let nm = pack $ getName (Proxy :: Proxy (FieldRec fields))
-        props = fieldsSchemaProperties (Proxy :: Proxy fields)
-        reqs = fieldsSchemaRequired (Proxy :: Proxy fields)
-    return $ NamedSchema (Just nm) $ mempty 
-      & type_ .~ SwaggerObject
-      & properties .~ props 
-      & required .~ reqs
+  declareNamedSchema p = declareVinylSchema (pack $ getName p) p
 
 class ToJSONProps a where 
   toJSONProps :: a -> [Pair]
@@ -87,3 +86,70 @@ instance (KnownSymbol n, FromJSON a, FromJSON (FieldRec fs)) => FromJSON (FieldR
     as <- parseJSON js
     return $ Field a :& as
   parseJSON _ = mzero
+
+-- | Derive vinyl record fields that can be used as partial update payload for given fields record
+type family VinylPatchFields (fields :: [(Symbol, *)]) :: [(Symbol, *)] where
+  VinylPatchFields '[] = '[]
+  VinylPatchFields ('(n, Maybe a) ': as) = '(n, Maybe (NullablePatch a)) ': VinylPatchFields as
+  VinylPatchFields ('(n, a) ': as) = '(n, Maybe a) ': VinylPatchFields as
+
+-- | Wrapper around 'VinylPatchFields' to produce corresponding patch record for a vinyl record
+type family VinylPatch a where 
+  VinylPatch (FieldRec fields) = FieldRec (VinylPatchFields fields)
+
+-- | Helper to derive 'ToSchema' instances for wrappers around vinyl records
+--
+-- @
+-- | Correspoinding patch record
+-- newtype ConnectionPatch = ConnectionPatch { unConnectionPatch :: VinylPatch Connection }
+--   deriving (ToJSON, FromJSON, Show)
+-- 
+-- instance ToSchema ConnectionPatch where 
+--   declareNamedSchema _ = declareVinylSchema "ConnectionPatch" (Proxy :: Proxy (VinylPatch Connection))
+-- @
+class ToVinylSchema a where 
+  declareVinylSchema :: forall proxy . Text -> proxy a -> Declare (Definitions Schema) NamedSchema
+
+instance FieldsSchema fields => ToVinylSchema (FieldRec fields) where 
+  declareVinylSchema nm _ = do 
+    let props = fieldsSchemaProperties (Proxy :: Proxy fields)
+        reqs = fieldsSchemaRequired (Proxy :: Proxy fields)
+    return $ NamedSchema (Just nm) $ mempty 
+      & type_ .~ SwaggerObject
+      & properties .~ props 
+      & required .~ reqs
+
+
+instance Patchable (FieldRec fields) (FieldRec '[]) where
+  applyPatch a _ = a 
+  {-# INLINE applyPatch #-}
+
+instance (
+    KnownSymbol n
+  , RElem '(n, a) fields i
+  , Patchable (FieldRec fields) (FieldRec fs)
+  ) => Patchable (FieldRec fields) (FieldRec ('(n, Maybe a) ': fs)) where 
+  applyPatch a (b :& bs) = applyPatch a' bs  
+    where 
+    a' = case b of 
+      Field Nothing  -> a
+      Field (Just v) -> setter v a
+    setter :: a -> FieldRec fields -> FieldRec fields
+    setter v = rput (Field v :: ElField '(n, a))
+  {-# INLINE applyPatch #-}
+
+instance (
+    KnownSymbol n
+  , RElem '(n, Maybe a) fields i
+  , Patchable (FieldRec fields) (FieldRec fs)
+  ) => Patchable (FieldRec fields) (FieldRec ('(n, Maybe (NullablePatch a)) ': fs)) where 
+  applyPatch a (b :& bs) = applyPatch a' bs  
+    where 
+    a' = case b of 
+      Field Nothing  -> a
+      Field (Just v) -> case v of 
+        NullifyPatch -> setter Nothing a
+        ValuePatch v' -> setter (Just v') a
+    setter :: Maybe a -> FieldRec fields -> FieldRec fields
+    setter v = rput (Field v :: ElField '(n, Maybe a))
+  {-# INLINE applyPatch #-}

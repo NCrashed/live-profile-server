@@ -43,6 +43,7 @@ library
     FlexibleInstances
     GeneralizedNewtypeDeriving
     KindSignatures
+    MultiParamTypeClasses
     OverloadedStrings
     RankNTypes
     ScopedTypeVariables

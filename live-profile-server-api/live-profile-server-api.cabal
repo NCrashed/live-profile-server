@@ -43,6 +43,7 @@ library
     FlexibleInstances
     GeneralizedNewtypeDeriving
     KindSignatures
+    MultiParamTypeClasses
     OverloadedStrings
     RankNTypes
     ScopedTypeVariables
@@ -50,6 +51,7 @@ library
     TypeFamilies
     TypeOperators
     TypeSynonymInstances
+    UndecidableInstances
 
 source-repository head
   type:     git
