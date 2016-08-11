@@ -79,14 +79,13 @@ instance FromJSON a => FromJSON (NullablePatch a) where
 instance ToSchema a => ToSchema (NullablePatch a) where 
   declareNamedSchema _ = do 
     boolSch <- declareSchemaRef (Proxy :: Proxy Bool)
-    NamedSchema an _ <- declareNamedSchema (Proxy :: Proxy a)
-    ar <- declareSchemaRef  (Proxy :: Proxy a)
+    NamedSchema an as <- declareNamedSchema (Proxy :: Proxy a)
     let nm = ("NullablePatch " <>) <$> an
     return $ NamedSchema nm $ mempty
       & type_ .~ SwaggerObject 
       & properties .~ [
           ("nullify", boolSch)
-        , ("value", ar)]
+        , ("value", Inline as)]
       & required .~ []
 
 -- | Defines that 'a' is patchable by type b
