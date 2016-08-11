@@ -18,7 +18,6 @@ module Profile.Live.Server.API.Connection(
   ) where 
 
 import Control.Lens
-import Data.Aeson
 import Data.Proxy
 import Data.Swagger 
 import Data.Text 
@@ -27,8 +26,7 @@ import Data.Vinyl.Derived
 import Servant.API
 import Servant.API.REST.Derive
 import Servant.API.REST.Derive.Named
-import Servant.API.REST.Derive.Patch
-import Servant.API.REST.Derive.Vinyl
+import Servant.API.REST.Derive.TH
 import Servant.Swagger 
 
 -- | Connection to remote application
@@ -43,16 +41,7 @@ instance Named Connection where
   getName _ = "Connection"
 
 -- | Correspoinding patch record
-newtype ConnectionPatch = ConnectionPatch { unConnectionPatch :: VinylPatch Connection }
-  deriving (ToJSON, FromJSON, Show)
-
-type instance PatchRec Connection = ConnectionPatch
-
-instance ToSchema ConnectionPatch where 
-  declareNamedSchema _ = declareVinylSchema "ConnectionPatch" (Proxy :: Proxy (VinylPatch Connection))
-
-instance Patchable Connection ConnectionPatch where 
-  applyPatch a (ConnectionPatch b) = applyPatch a b
+$(declareVinylPatch ''Connection)
 
 -- | API about connections to remote Haskell applications that we profile
 type ConnectionAPI = "connection" :> RESTFull Connection "connection"
