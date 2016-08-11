@@ -20,6 +20,7 @@ library
   exposed-modules:
     Servant.API.REST.Derive
     Servant.API.REST.Derive.Named
+    Servant.API.REST.Derive.Patch
     Servant.API.REST.Derive.Vinyl
   build-depends:       
       base >= 4.7 && < 5
@@ -33,7 +34,7 @@ library
     , text                      >= 1.2      && < 1.3
     , unordered-containers      >= 0.2      && < 0.3
     , vinyl                     >= 0.5.2    && < 0.6
-    
+
   default-language:    Haskell2010
   default-extensions:
     DataKinds
