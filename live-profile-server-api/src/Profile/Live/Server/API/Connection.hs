@@ -44,7 +44,8 @@ instance Named Connection where
 $(declareVinylPatch ''Connection)
 
 -- | API about connections to remote Haskell applications that we profile
-type ConnectionAPI = "connection" :> RESTFull Connection "connection"
+type ConnectionAPI = "connection" 
+  :> RESTFull Connection "connection"
 
 -- | Select only operations of the Connection API
 connectionOperations :: Traversal' Swagger Operation
