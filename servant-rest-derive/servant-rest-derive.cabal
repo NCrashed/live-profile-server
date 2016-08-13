@@ -32,7 +32,7 @@ library
     , path-pieces               >= 0.2      && < 0.3
     , servant                   >= 0.7      && < 0.8
     , servant-auth-token-api    >= 0.2      && < 0.3
-    , swagger2                  >= 2.0      && < 2.2
+    , swagger2                  >= 2.1      && < 2.2
     , template-haskell          >= 2.11     && < 2.12
     , text                      >= 1.2      && < 1.3
     , unordered-containers      >= 0.2      && < 0.3
@@ -52,7 +52,6 @@ library
     ScopedTypeVariables
     TemplateHaskell
     TypeFamilies
-    TypeFamilyDependencies
     TypeOperators
     TypeSynonymInstances
     UndecidableInstances

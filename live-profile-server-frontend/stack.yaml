@@ -46,4 +46,6 @@ extra-deps:
 - ghcjs-dom-0.2.4.0
 - ref-tf-0.4
 - servant-auth-token-api-0.2.0.0
+- servant-swagger-1.1.1
+- swagger2-2.1
 - these-0.6.1.0

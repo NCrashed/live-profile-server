@@ -72,7 +72,7 @@ data RESTAction = Read | Write | Create | Delete
   deriving (Show, Eq, Generic)
 
 -- | Calculate permission labels for rest action
-type family RESTPermission (t :: RESTAction) (a :: Symbol) = res | res -> t a where 
+type family RESTPermission (t :: RESTAction) (a :: Symbol) where 
   RESTPermission 'Read a = 'PermConcat ('PermLabel "read-") ('PermLabel a)
   RESTPermission 'Write a = 'PermConcat ('PermLabel "write-") ('PermLabel a)
   RESTPermission 'Create a = 'PermConcat ('PermLabel "create-") ('PermLabel a)
@@ -84,7 +84,7 @@ type family PatchRec a
 -- | Generation of REST-full API
 type RESTFull a (aname :: Symbol) = RESTFullWith '[ 'GET, 'POST, 'PUT, 'PATCH, 'DELETE] a aname
 
-type family RESTEndpoint (action :: StdMethod) a (aname :: Symbol) = res | res -> action a aname where 
+type family RESTEndpoint (action :: StdMethod) a (aname :: Symbol) where 
   RESTEndpoint 'GET a aname = Capture "id" (Id a)
     :> TokenHeader '[RESTPermission 'Read aname]
     :> Get '[JSON] a

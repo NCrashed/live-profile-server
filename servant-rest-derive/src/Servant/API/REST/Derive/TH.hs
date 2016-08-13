@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-|
 Module      : Servant.API.REST.Derive.Server.TH
@@ -38,7 +39,8 @@ import Servant.API.REST.Derive.Vinyl
 --   applyPatch a (<Record>Patch b) = applyPatch a b
 -- @
 declareVinylPatch :: Name -> Q [Dec]
-declareVinylPatch recName = do 
+declareVinylPatch recName = do
+#if MIN_VERSION_template_haskell(2,11,0)
   newtypeDec <- newtypeD 
     (pure []) 
     patchRecName 
@@ -49,7 +51,18 @@ declareVinylPatch recName = do
       ]
     ) 
     (sequence [conT ''Eq, conT ''Show, conT ''ToJSON, conT ''FromJSON])
-  
+#else 
+  newtypeDec <- newtypeD 
+    (pure []) 
+    patchRecName 
+    []
+    (recC patchRecName [
+      varStrictType patchRecNameField $ strictType notStrict [t| VinylPatch $(conT recName) |]
+      ]
+    ) 
+    [''Eq, ''Show, ''ToJSON, ''FromJSON]
+#endif  
+
   tinst <- [d| type instance PatchRec $(conT recName) = $(conT patchRecName) |]
   
   toSchemaInst <- [d|
