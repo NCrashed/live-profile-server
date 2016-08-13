@@ -80,10 +80,26 @@ instance ToJSONProps (FieldRec fields) => ToJSON (FieldRec fields) where
 instance FromJSON (FieldRec '[]) where 
   parseJSON _ = pure RNil
 
-instance (KnownSymbol n, FromJSON a, FromJSON (FieldRec fs)) => FromJSON (FieldRec ('(n, a) ': fs)) where 
+instance {-# OVERLAPPABLE #-} (
+    KnownSymbol n
+  , FromJSON a
+  , FromJSON (FieldRec fs)
+  ) => FromJSON (FieldRec ('(n, a) ': fs)) where 
   parseJSON js@(Object o) = do 
     let n = pack $ symbolVal (Proxy :: Proxy n)
     a <- o .: n 
+    as <- parseJSON js
+    return $ Field a :& as
+  parseJSON _ = mzero
+
+instance {-# OVERLAPPING #-} (
+    KnownSymbol n
+  , FromJSON a
+  , FromJSON (FieldRec fs)
+  ) => FromJSON (FieldRec ('(n, Maybe a) ': fs)) where 
+  parseJSON js@(Object o) = do 
+    let n = pack $ symbolVal (Proxy :: Proxy n)
+    a <- o .:? n 
     as <- parseJSON js
     return $ Field a :& as
   parseJSON _ = mzero
