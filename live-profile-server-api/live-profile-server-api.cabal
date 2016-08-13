@@ -21,6 +21,7 @@ library
     Profile.Live.Server.API
     Profile.Live.Server.API.Connection
     Profile.Live.Server.API.Session
+    Profile.Live.Server.Events
   build-depends:       
       base                    >= 4.7      && < 5
     , aeson                   >= 0.11     && < 1.1

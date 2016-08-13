@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: nightly-2016-08-12
+resolver: nightly-2016-06-29 #nightly-2016-08-13
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -43,16 +43,33 @@ packages:
 #- '../../servant-auth-token'
 #- '../../servant-auth-token-api'
 #- '../../aeson-injector'
+- location:
+    git: https://github.com/NCrashed/live-profile-monitor.git
+    commit: 0fbd27eb1b709fe8af16f697150c9a96fe84adf5
+  subdirs:
+    - '.'
+    - './live-profile-client'
+    - './live-profile-protocol'
+- location:
+    git: https://github.com/NCrashed/ghc-events.git
+    commit: 5427e8bc4b14328f25e0700d35c0f09bceb56501
+- location:
+    git: https://github.com/well-typed/binary-serialise-cbor.git
+    commit: 2df417c4faf32204dc702633188f835a74819924
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - aeson-injector-1.0.4.0
+- binary-0.7.6.1
 - servant-auth-token-0.2.0.1
 - servant-auth-token-api-0.2.0.0
+- wai-cors-0.2.5
 
 # Override default flag values for local packages and extra-deps
-flags: {}
+flags:
+  binary-serialise-cbor:
+    newtime15: true
 
 # Extra package databases containing global packages
 extra-package-dbs: []
