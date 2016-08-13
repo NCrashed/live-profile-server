@@ -47,8 +47,8 @@ $(declareVinylPatch ''Session)
 
 -- | API about sessions to remote Haskell applications that we profile
 type SessionAPI = "session" :> (
-  -- :> RESTFull Session "session"
-       "connect" :> Capture "connection-id" (Id Connection) :> Post '[JSON] (Id Session)
+       RESTFullWith '[ 'GET] Session "session"
+  :<|> "connect" :> Capture "connection-id" (Id Connection) :> Post '[JSON] (Id Session)
   :<|> "disconnect" :> Capture "session-id" (Id Session) :> Post '[JSON] Unit
   )
 

@@ -27,12 +27,13 @@ library
       base >= 4.7 && < 5
     , aeson                     >= 0.11     && < 1.1
     , aeson-injector            >= 1.0.4    && < 1.1
-    , lens                      >= 4.13     && < 4.14
+    , insert-ordered-containers >= 0.1      && < 0.2
+    , lens                      >= 4.13     && < 4.15
     , path-pieces               >= 0.2      && < 0.3
     , servant                   >= 0.7      && < 0.8
     , servant-auth-token-api    >= 0.2      && < 0.3
     , swagger2                  >= 2.0      && < 2.2
-    , template-haskell          >= 2.10     && < 2.11
+    , template-haskell          >= 2.11     && < 2.12
     , text                      >= 1.2      && < 1.3
     , unordered-containers      >= 0.2      && < 0.3
     , vinyl                     >= 0.5.2    && < 0.6
@@ -51,6 +52,7 @@ library
     ScopedTypeVariables
     TemplateHaskell
     TypeFamilies
+    TypeFamilyDependencies
     TypeOperators
     TypeSynonymInstances
     UndecidableInstances

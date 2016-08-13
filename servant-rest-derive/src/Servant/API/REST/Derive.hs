@@ -13,13 +13,15 @@ module Servant.API.REST.Derive(
   , RESTPermission
   , PatchRec
   , RESTFull
+  , RESTFullWith
+  , RESTEndpoint
   ) where 
 
 import Data.Aeson
 import Data.Aeson.Unit
 import Data.Aeson.WithField
 import Data.Proxy 
-import Data.Swagger 
+import Data.Swagger
 import GHC.Generics
 import GHC.TypeLits 
 import Servant.API 
@@ -70,7 +72,7 @@ data RESTAction = Read | Write | Create | Delete
   deriving (Show, Eq, Generic)
 
 -- | Calculate permission labels for rest action
-type family RESTPermission (t :: RESTAction) (a :: Symbol) :: PermSymbol where 
+type family RESTPermission (t :: RESTAction) (a :: Symbol) = res | res -> t a where 
   RESTPermission 'Read a = 'PermConcat ('PermLabel "read-") ('PermLabel a)
   RESTPermission 'Write a = 'PermConcat ('PermLabel "write-") ('PermLabel a)
   RESTPermission 'Create a = 'PermConcat ('PermLabel "create-") ('PermLabel a)
@@ -80,21 +82,32 @@ type family RESTPermission (t :: RESTAction) (a :: Symbol) :: PermSymbol where
 type family PatchRec a
 
 -- | Generation of REST-full API
-type RESTFull a (aname :: Symbol) = 
-       Capture "id" (Id a)
+type RESTFull a (aname :: Symbol) = RESTFullWith '[ 'GET, 'POST, 'PUT, 'PATCH, 'DELETE] a aname
+
+type family RESTEndpoint (action :: StdMethod) a (aname :: Symbol) = res | res -> action a aname where 
+  RESTEndpoint 'GET a aname = Capture "id" (Id a)
     :> TokenHeader '[RESTPermission 'Read aname]
     :> Get '[JSON] a
-  :<|> ReqBody '[JSON] a 
+
+  RESTEndpoint 'POST a aname = ReqBody '[JSON] a 
     :> TokenHeader '[RESTPermission 'Create aname]
     :> Post '[JSON] (OnlyId (Id a))
-  :<|> Capture "id" (Id a)
+
+  RESTEndpoint 'PUT a aname = Capture "id" (Id a)
     :> ReqBody '[JSON] a 
     :> TokenHeader '[RESTPermission 'Write aname]
     :> Put '[JSON] Unit 
-  :<|> Capture "id" (Id a)
+
+  RESTEndpoint 'PATCH a aname = Capture "id" (Id a)
     :> ReqBody '[JSON] (PatchRec a)
     :> TokenHeader '[RESTPermission 'Write aname]
     :> Patch '[JSON] Unit
-  :<|> Capture "id" (Id a)
+
+  RESTEndpoint 'DELETE a aname = Capture "id" (Id a)
     :> TokenHeader '[RESTPermission 'Delete aname]
     :> Delete '[JSON] Unit
+
+ -- | Generation of partial REST API
+type family RESTFullWith (actions :: [StdMethod]) a (aname :: Symbol) where
+  RESTFullWith '[action] a aname = RESTEndpoint action a aname
+  RESTFullWith (action ': actions) a aname = RESTEndpoint action a aname :<|> RESTFullWith actions a aname 

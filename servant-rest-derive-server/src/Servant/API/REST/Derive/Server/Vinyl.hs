@@ -250,17 +250,24 @@ instance (
 
 instance (
     PersistEntity (FieldRec fields)
-  , Patchable (FieldRec fields) (PatchRec (FieldRec fields))
-  ) => StorableResource (FieldRec fields) where 
+  ) => ResourceRead (FieldRec fields) where 
   -- readResource :: Id a -> SqlPersistT m (Maybe a)
   readResource = get . VKey 
 
+instance (
+    PersistEntity (FieldRec fields)
+  ) => ResourceWrite (FieldRec fields) where 
   -- insertResource :: a -> SqlPersistT m (Id a)
   insertResource = fmap unVKey . insert
 
   -- replaceResource :: Id a -> a -> SqlPersistT m ()
   replaceResource i = replace (VKey i)
 
+instance (
+    ResourceRead (FieldRec fields)
+  , ResourceWrite (FieldRec fields)
+  , Patchable (FieldRec fields) (PatchRec (FieldRec fields))
+  ) => ResourcePatch (FieldRec fields) where 
   -- patchResource :: Id a -> PatchRec a -> SqlPersistT m ()
   patchResource i pa = do 
     ma <- readResource i
@@ -268,6 +275,9 @@ instance (
       Nothing -> return ()
       Just a -> replaceResource i $ applyPatch a pa 
 
+instance (
+    PersistEntity (FieldRec fields)
+  ) => ResourceDelete (FieldRec fields) where 
   -- deleteResource :: Id a -> SqlPersistT m ()
   deleteResource = delete . VKey
 

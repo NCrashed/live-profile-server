@@ -32,6 +32,7 @@ import Servant.API.REST.Derive.Named
 import Servant.API.REST.Derive.Patch
 
 import qualified Data.HashMap.Strict as H
+import qualified Data.HashMap.Strict.InsOrd as HO
 
 class FieldsSchema (fields :: [(Symbol, *)]) where 
   fieldsSchemaProperties :: forall proxy . proxy fields -> H.HashMap Text (Referenced Schema)
@@ -116,7 +117,7 @@ instance FieldsSchema fields => ToVinylSchema (FieldRec fields) where
         reqs = fieldsSchemaRequired (Proxy :: Proxy fields)
     return $ NamedSchema (Just nm) $ mempty 
       & type_ .~ SwaggerObject
-      & properties .~ props 
+      & properties .~ HO.fromHashMap props 
       & required .~ reqs
 
 

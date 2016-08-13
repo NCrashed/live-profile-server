@@ -32,7 +32,7 @@ app :: MonadWidget t m => m ()
 app = mdo
   -- svgDyn :: Dynamic t (m (DiaEv Any))
   svgDyn <- mapDyn (reflexDia $ def & sizeSpec .~ dims2D 1920 1000) diaDyn
-  -- pos :: Event (V2 Double)
+  -- pos :: Event (P2 Double)
   pos <- switchPromptly never <$> fmap diaMousemovePos =<< dyn svgDyn
   -- diaDyn :: Dynamic (Diagram B)
   diaDyn <- holdDyn (mkDia . p2 $ (0, -1000)) (mkDia <$> pos)

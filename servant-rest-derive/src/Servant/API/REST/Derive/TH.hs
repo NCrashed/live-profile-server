@@ -43,11 +43,12 @@ declareVinylPatch recName = do
     (pure []) 
     patchRecName 
     []
+    Nothing
     (recC patchRecName [
-      varStrictType patchRecNameField $ strictType notStrict [t| VinylPatch $(conT recName) |]
+      varBangType patchRecNameField $ bangType (bang noSourceUnpackedness noSourceStrictness) [t| VinylPatch $(conT recName) |]
       ]
     ) 
-    [''Eq, ''Show, ''ToJSON, ''FromJSON]
+    (sequence [conT ''Eq, conT ''Show, conT ''ToJSON, conT ''FromJSON])
   
   tinst <- [d| type instance PatchRec $(conT recName) = $(conT patchRecName) |]
   
