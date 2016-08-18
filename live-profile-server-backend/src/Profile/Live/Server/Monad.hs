@@ -13,6 +13,7 @@ module Profile.Live.Server.Monad(
   , initAppState
   -- * Application monad
   , App(..)
+  , getAppRunner
   -- * Helpers
   -- ** Config helpers
   , getConfig
@@ -25,7 +26,7 @@ module Profile.Live.Server.Monad(
   , require
   ) where
 
-import Control.Monad.Except                 (ExceptT, MonadError)
+import Control.Monad.Except                 (ExceptT, MonadError, runExceptT)
 import Control.Monad.Reader
 import Data.Monoid                          ((<>))
 import Database.Persist.Sql    
@@ -117,3 +118,17 @@ guardExist info m = do
   case ma of 
     Nothing -> throwError $ err404 { errBody = "Cannot find " <> BS.fromStrict (T.encodeUtf8 info) }
     Just _ -> return ()
+
+-- | Make a function that can run arbitrary 'App' action in 'IO'
+--
+-- Intended to be used in 'forkIO'.
+getAppRunner :: App (App a -> IO a)
+getAppRunner = do 
+  state <- ask
+  return $ printException . flip runReaderT state . runApp
+  where 
+    printException ma = do 
+      r <- runExceptT ma
+      case r of 
+        Left er -> fail $ show er 
+        Right a -> return a
