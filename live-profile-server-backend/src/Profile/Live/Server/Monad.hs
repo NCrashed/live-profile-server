@@ -26,6 +26,7 @@ module Profile.Live.Server.Monad(
   , require
   ) where
 
+import Control.Concurrent                   (ThreadId)
 import Control.Monad.Except                 (ExceptT, MonadError, runExceptT)
 import Control.Monad.State.Strict as S
 import Data.Monoid                          ((<>))
@@ -35,6 +36,7 @@ import Servant.API.REST.Derive.Server
 import Servant.Server.Auth.Token.Config
 
 import qualified Data.ByteString.Lazy as BS 
+import qualified Data.HashMap.Strict as H 
 import qualified Data.Text as T 
 import qualified Data.Text.Encoding as T 
 
@@ -51,6 +53,8 @@ data AppState = AppState {
 , appAuth :: AuthConfig
   -- | Used configuration of the server
 , appConfig :: Config 
+  -- | Mapping of currently running sessions of profiling
+, appSessions :: H.HashMap Word ThreadId
 }
 
 -- | Make initial application state
@@ -62,6 +66,7 @@ initAppState cfg@Config{..} = do
       appPool = pool 
     , appAuth = acfg 
     , appConfig = cfg
+    , appSessions = mempty
     }
 
 -- | This type represents the effects we want to have for our application.
