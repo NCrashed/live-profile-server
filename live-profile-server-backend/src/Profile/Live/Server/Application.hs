@@ -17,7 +17,7 @@ module Profile.Live.Server.Application(
   ) where
 
 import Control.Monad.Except 
-import Control.Monad.Reader
+import Control.Monad.State.Strict
 import Network.Wai (Application)
 import Servant
 import Servant.Server.Auth.Token 
@@ -50,7 +50,7 @@ liveProfileServer app = documentedServer app :<|> files app
 -- non-category theory terms, a function that converts two type
 -- constructors without looking at the values in the types.
 convertApp :: AppState -> App :~> ExceptT ServantErr IO
-convertApp app = Nat (flip runReaderT app . runApp)
+convertApp app = Nat (flip evalStateT app . runApp)
 
 -- | Since we also want to provide a minimal front end, we need to give
 -- Servant a way to serve a directory with HTML and JavaScript. This

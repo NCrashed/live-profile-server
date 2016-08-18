@@ -27,7 +27,7 @@ module Profile.Live.Server.Monad(
   ) where
 
 import Control.Monad.Except                 (ExceptT, MonadError, runExceptT)
-import Control.Monad.Reader
+import Control.Monad.State.Strict as S
 import Data.Monoid                          ((<>))
 import Database.Persist.Sql    
 import Servant                              
@@ -65,19 +65,19 @@ initAppState cfg@Config{..} = do
     }
 
 -- | This type represents the effects we want to have for our application.
--- We wrap the standard Servant monad with 'ReaderT AppState', which gives us
--- access to the application state and configuration using the 'MonadReader'
--- interface's 'ask' function.
+-- We wrap the standard Servant monad with 'StateT AppState', which gives us
+-- access to the application state and configuration using the 'MonadState'
+-- interface's 'get' and 'put' functions.
 --
 -- By encapsulating the effects in our newtype, we can add layers to the
 -- monad stack without having to modify code that uses the current layout.
 newtype App a = App { 
-    runApp :: ReaderT AppState (ExceptT ServantErr IO) a
-  } deriving ( Functor, Applicative, Monad, MonadReader AppState,
+    runApp :: StateT AppState (ExceptT ServantErr IO) a
+  } deriving ( Functor, Applicative, Monad, MonadState AppState,
                MonadError ServantErr, MonadIO)
 
 instance AuthMonad App where 
-  getAuthConfig = asks appAuth
+  getAuthConfig = gets appAuth
   liftAuthAction = App . lift
 
 instance HasRESTDB App where 
@@ -90,16 +90,16 @@ require _ (Just a) = return a
 
 -- | Getting config from global state
 getConfig :: App Config 
-getConfig = asks appConfig
+getConfig = gets appConfig
 
 -- | Getting config part from global state
 getsConfig :: (Config -> a) -> App a 
-getsConfig getter = asks (getter . appConfig)
+getsConfig getter = gets (getter . appConfig)
 
 -- | Execute database transaction
 runDB :: SqlPersistT IO a -> App a
 runDB query = do
-  pool <- asks appPool
+  pool <- gets appPool
   liftIO $ runSqlPool query pool
 
 -- | Run RDBMS operation and throw 404 (not found) error if 
@@ -124,8 +124,8 @@ guardExist info m = do
 -- Intended to be used in 'forkIO'.
 getAppRunner :: App (App a -> IO a)
 getAppRunner = do 
-  state <- ask
-  return $ printException . flip runReaderT state . runApp
+  state <- S.get
+  return $ printException . flip evalStateT state . runApp
   where 
     printException ma = do 
       r <- runExceptT ma
