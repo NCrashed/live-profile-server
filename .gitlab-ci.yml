@@ -1,6 +1,7 @@
 stages:
   - prebuild
   - build
+  - predeploy
   - deploy
 
 cache:
@@ -11,7 +12,7 @@ cache:
   - live-profile-server-frontend/.stack-work
 
 image-stop:
-  stage: prebuild
+  stage: predeploy
   script:
     - sudo docker rm -f live-profile-postgres || true
     - sudo docker rm -f live-profile-server || true
