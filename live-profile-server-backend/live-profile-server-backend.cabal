@@ -28,11 +28,12 @@ library
   exposed-modules:
     Profile.Live.Server.Application
     Profile.Live.Server.Application.Connection
+    Profile.Live.Server.Application.Session
     Profile.Live.Server.Config
     Profile.Live.Server.Config.Auth
     Profile.Live.Server.Config.Database
-    Profile.Live.Server.Monad
     Profile.Live.Server.Models
+    Profile.Live.Server.Monad
     Profile.Live.Server.Utils
     Profile.Live.Server.Utils.DeriveJson
   default-language:    Haskell2010

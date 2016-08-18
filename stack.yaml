@@ -56,14 +56,18 @@ packages:
 - location:
     git: https://github.com/well-typed/binary-serialise-cbor.git
     commit: 2df417c4faf32204dc702633188f835a74819924
+- location:
+    git: https://github.com/NCrashed/aeson-injector.git 
+    commit: 2373eff0cabb67c2885b35e0b9c499dc9e36bdbc
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- aeson-injector-1.0.4.0
+- aeson-injector-1.0.5.1
 - binary-0.7.6.1
 - servant-auth-token-0.2.0.1
 - servant-auth-token-api-0.2.0.0
+- swagger2-2.1.2.1
 - wai-cors-0.2.5
 
 # Override default flag values for local packages and extra-deps

@@ -84,7 +84,28 @@ class DeriveEntityFields (fields :: [(Symbol, *)]) where
 instance DeriveEntityFields '[] where 
   deriveEntityFields _ = []
 
-instance (
+instance {-# OVERLAPPING #-} (
+    KnownSymbol n
+  -- , Typeable a -- ghc panic here 
+  , DeriveEntityFieldAttr (Id a)
+  , DeriveEntityFields fs
+  ) => DeriveEntityFields ('(n, Id a) ': fs) where 
+  deriveEntityFields _ = f : deriveEntityFields (Proxy :: Proxy fs)
+    where 
+    n = pack $ symbolVal (Proxy :: Proxy n)
+    as = "Id" -- pack . show $ typeRep (Proxy :: Proxy a)
+    (attrs, sqlt) = deriveEntityFieldAttr (Proxy :: Proxy (Id a))
+    f = FieldDef {
+        fieldHaskell = HaskellName n
+      , fieldDB = DBName . snakify $ n
+      , fieldType = FTTypeCon Nothing as
+      , fieldSqlType = sqlt
+      , fieldAttrs = attrs
+      , fieldStrict = True
+      , fieldReference = NoReference
+      }
+
+instance {-# OVERLAPPABLE #-} (
     KnownSymbol n
   , Typeable a
   , DeriveEntityFieldAttr a
@@ -132,9 +153,6 @@ instance (KnownSymbol n, PersistField a, FromVinylPersistValues (FieldRec as)) =
     where 
       n = pack $ symbolVal (Proxy :: Proxy n)
       fieldError err = "field " <> n <> ": " <> err
-
---class VinylRuntimeGetter fields a where 
---  vinylRuntimeGetter :: String -> FieldRec fields -> Maybe a 
 
 -- | Helper proof that 'a' symbol is within 'as'
 type family WithinFields (a :: (Symbol, *)) (as :: [(Symbol, *)]) :: Bool where 

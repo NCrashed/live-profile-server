@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-|
 Module      : Servant.API.REST.Derive.Server
 Description : Derive server side implementation for REST API
@@ -161,3 +162,12 @@ instance (
     guardAuthToken token 
     runRESTDB $ deleteResource i 
     return Unit
+
+instance PersistFieldSql (Id a) where 
+  sqlType _ = sqlType (Proxy :: Proxy Word)
+
+instance PersistField (Id a) where 
+  toPersistValue (Id w) = toPersistValue w 
+  fromPersistValue v = case v of 
+    PersistInt64 i -> Right . Id . fromIntegral $ i
+    _ -> Left "Expected Int64 value for key"
