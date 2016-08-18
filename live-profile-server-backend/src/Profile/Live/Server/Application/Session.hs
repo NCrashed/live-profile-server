@@ -1,4 +1,12 @@
-{-# OPTIONS_GHC -ddump-if-trace #-}
+{-|
+Module      : Profile.Live.Server.Application.Session
+Description : Implementation of Session API
+Copyright   : (c) Anton Gushcha, 2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : Portable
+-}
 module Profile.Live.Server.Application.Session(
     sessionServer
   ) where

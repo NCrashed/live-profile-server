@@ -15,7 +15,8 @@ import Data.Proxy
 import Database.Persist.Sql
 import Servant.API.REST.Derive.Server.Vinyl
 
-import qualified Profile.Live.Server.API.Connection as Conn 
+import Profile.Live.Server.API.Connection as Conn
+import Profile.Live.Server.API.Session
 import qualified Servant.Server.Auth.Token.Model as Auth
 
 
@@ -25,4 +26,5 @@ doMigrations strength = do
   runMigrationUnsafe $ do 
     Auth.migrateAll
     migrateVinyl (Proxy :: Proxy Conn.Connection)
+    migrateVinyl (Proxy :: Proxy Session)
   Auth.ensureAdmin strength "admin" "admin" "admin@localhost"

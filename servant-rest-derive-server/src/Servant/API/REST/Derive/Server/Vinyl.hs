@@ -84,6 +84,8 @@ class DeriveEntityFields (fields :: [(Symbol, *)]) where
 instance DeriveEntityFields '[] where 
   deriveEntityFields _ = []
 
+-- | Special case for id to workaround missing 'Typeable' instance for type tuple
+-- literal
 instance {-# OVERLAPPING #-} (
     KnownSymbol n
   -- , Typeable a -- ghc panic here 
