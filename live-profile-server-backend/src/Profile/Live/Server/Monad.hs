@@ -14,10 +14,12 @@ module Profile.Live.Server.Monad(
   -- * Application monad
   , App(..)
   , getAppRunner
+  , runAppInIO
   -- * Helpers
   -- ** Config helpers
   , getConfig
   , getsConfig
+  , getSessions
   -- ** DB helpers
   , runDB 
   , runDB404
@@ -129,11 +131,19 @@ guardExist info m = do
 -- Intended to be used in 'forkIO'.
 getAppRunner :: App (App a -> IO a)
 getAppRunner = do 
-  state <- S.get
-  return $ printException . flip evalStateT state . runApp
+  st <- S.get
+  return $ runAppInIO st
+  
+-- | Helper to run application actions in IO
+runAppInIO :: AppState -> App a -> IO a 
+runAppInIO st = printException . flip evalStateT st . runApp
   where 
-    printException ma = do 
-      r <- runExceptT ma
-      case r of 
-        Left er -> fail $ show er 
-        Right a -> return a
+  printException ma = do 
+    r <- runExceptT ma
+    case r of 
+      Left er -> fail $ show er 
+      Right a -> return a
+
+-- | Retrieve mapping from session to threads from app state
+getSessions :: App (H.HashMap Word ThreadId)
+getSessions = gets appSessions

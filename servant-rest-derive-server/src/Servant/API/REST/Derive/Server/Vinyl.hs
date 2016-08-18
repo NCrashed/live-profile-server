@@ -16,6 +16,7 @@ module Servant.API.REST.Derive.Server.Vinyl(
   , FromVinylPersistValues(..)
   , EntityField(DBFieldId, DBField)
   , Key(VKey)
+  , unVKey
   , VinylMigration(..)
   ) where
 

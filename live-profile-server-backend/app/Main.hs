@@ -7,6 +7,7 @@ import Options.Applicative
 
 import Profile.Live.Server.API
 import Profile.Live.Server.Application
+import Profile.Live.Server.Application.Session
 import Profile.Live.Server.Config 
 import Profile.Live.Server.Config.Auth
 import Profile.Live.Server.Models 
@@ -39,6 +40,10 @@ server Options{..} = do
   generateJavaScript $ configStatic config <> "/api.js"
   generateSwagger $ configStatic config <> "/swagger.json"
 
+  -- santinize actions
+  runAppInIO astate $ do 
+    sanitizeSessions
+    
   let port = fromIntegral $ configPort config
   let app = liveProfileApp astate
   let logger = setLogger $ configEnvironment config
