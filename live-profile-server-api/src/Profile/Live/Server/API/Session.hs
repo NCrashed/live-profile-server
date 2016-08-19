@@ -30,11 +30,11 @@ import Servant.API.REST.Derive.Named
 import Servant.API.REST.Derive.TH
 import Servant.Swagger 
 
---import Profile.Live.Server.API.Connection 
+import Profile.Live.Server.API.Connection 
 
 -- | Session to remote application
 type Session = FieldRec '[
-    '("connection", Id (FieldRec '[ '("name", Int)]))
+    '("connection", Id Connection)
   , '("start", UTCTime)
   , '("end", Maybe UTCTime)
   ]

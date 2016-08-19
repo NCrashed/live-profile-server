@@ -45,7 +45,7 @@ packages:
 #- '../../aeson-injector'
 - location:
     git: https://github.com/NCrashed/live-profile-monitor.git
-    commit: 0fbd27eb1b709fe8af16f697150c9a96fe84adf5
+    commit: 770c51503fc003f70df2df578cfb2eeb303425f5
   subdirs:
     - '.'
     - './live-profile-client'

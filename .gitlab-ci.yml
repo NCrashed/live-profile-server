@@ -33,14 +33,12 @@ image-build:
     - stack install happy alex 
 
     # build server
-    - cd live-profile-server-backend
-    - stack setup
     - stack install
-    - cp /home/gitlab-runner/.local/bin/live-profile-server ./live-profile-server
+    - cp /home/gitlab-runner/.local/bin/live-profile-server ./live-profile-server-backend/live-profile-server
 
     # build client
+    - cd ./live-profile-server-frontend
     - export PATH=$PATH:/home/gitlab-runner/.stack/programs/x86_64-linux/ghc-gmp4-7.10.3/bin
-    - cd ../live-profile-server-frontend
     - stack setup
     - stack install 
     - cp .stack-work/install/x86_64-linux-gmp4/lts-6.6/ghcjs-0.2.0.900006006_ghc-7.10.3/bin/fitclubs-frontend-output.jsexe/*.js ../live-profile-server-backend/static/

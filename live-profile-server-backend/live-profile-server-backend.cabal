@@ -32,6 +32,7 @@ library
     Profile.Live.Server.Config
     Profile.Live.Server.Config.Auth
     Profile.Live.Server.Config.Database
+    Profile.Live.Server.Error
     Profile.Live.Server.Models
     Profile.Live.Server.Monad
     Profile.Live.Server.Utils
@@ -41,7 +42,11 @@ library
       base                        >= 4.7      && < 5
     , aeson                       >= 0.11     && < 1.1
     , bytestring                  >= 0.10     && < 0.11
+    , fast-logger                 >= 2.4      && < 2.5
     , file-embed                  >= 0.0.10   && < 0.1
+    , lens                        >= 4.14     && < 4.15
+    , live-profile-client         >= 0.1      && < 0.2
+    , live-profile-protocol       >= 0.1      && < 0.2
     , live-profile-server-api     == 0.1.0.0
     , monad-logger                >= 0.3      && < 0.4
     , mtl                         >= 2.2      && < 2.3
@@ -53,17 +58,20 @@ library
     , servant-rest-derive-server  >= 0.1      && < 0.2
     , servant-server              >= 0.7      && < 0.8
     , servant-swagger             >= 1.0      && < 1.2
+    , socket                      >= 0.6      && < 0.7
     , swagger2                    >= 2.0      && < 2.2
     , text                        >= 1.2      && < 1.3
     , time                        >= 1.6      && < 1.7
     , unordered-containers        >= 0.2.7    && < 0.3
+    , vinyl                       >= 0.5.2    && < 0.6
     , wai                         >= 3.2      && < 3.3
     , wai-extra                   >= 3.0      && < 3.1
     , yaml                        >= 0.8      && < 0.9
-    
+
   default-extensions:
     DataKinds
     DeriveGeneric
+    FlexibleContexts
     FlexibleInstances
     GeneralizedNewtypeDeriving
     KindSignatures

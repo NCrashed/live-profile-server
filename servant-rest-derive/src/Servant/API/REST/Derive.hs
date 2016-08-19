@@ -20,6 +20,7 @@ module Servant.API.REST.Derive(
 import Data.Aeson
 import Data.Aeson.Unit
 import Data.Aeson.WithField
+import Data.Hashable 
 import Data.Proxy 
 import Data.Swagger
 import GHC.Generics
@@ -66,6 +67,9 @@ instance FromHttpApiData (Id a) where
 instance PathPiece (Id a) where 
   fromPathPiece = fmap Id . fromPathPiece
   toPathPiece (Id i) = toPathPiece i 
+
+instance Hashable (Id a) where 
+  hashWithSalt salt (Id i) = hashWithSalt salt i 
 
 -- | Type of action that is permited by a REST API
 data RESTAction = Read | Write | Create | Delete 

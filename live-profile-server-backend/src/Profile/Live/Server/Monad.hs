@@ -19,7 +19,11 @@ module Profile.Live.Server.Monad(
   -- ** Config helpers
   , getConfig
   , getsConfig
+  -- ** Sessions helpers
   , getSessions
+  , modifySessions
+  -- ** Logger helpers
+  , getLogger
   -- ** DB helpers
   , runDB 
   , runDB404
@@ -34,41 +38,51 @@ import Control.Monad.State.Strict as S
 import Data.Monoid                          ((<>))
 import Database.Persist.Sql    
 import Servant                              
+import Servant.API.REST.Derive
 import Servant.API.REST.Derive.Server
+import Servant.Server.Auth.Token 
 import Servant.Server.Auth.Token.Config
+import System.Log.FastLogger
 
 import qualified Data.ByteString.Lazy as BS 
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Text as T 
 import qualified Data.Text.Encoding as T 
 
+import Profile.Live.Server.API.Session 
 import Profile.Live.Server.Config
 import Profile.Live.Server.Config.Auth 
+import Profile.Live.Termination
 
-import Servant.Server.Auth.Token 
+-- | Container for current opened sessions
+type SessionsMap = H.HashMap (Id Session) (ThreadId, TerminationPair)
 
 -- | Global state of application
 data AppState = AppState {
   -- | Connection pool for the DB 
-  appPool :: ConnectionPool 
+  appPool :: !ConnectionPool 
   -- | Authorisation configuration
-, appAuth :: AuthConfig
+, appAuth :: !AuthConfig
   -- | Used configuration of the server
-, appConfig :: Config 
+, appConfig :: !Config 
   -- | Mapping of currently running sessions of profiling
-, appSessions :: H.HashMap Word ThreadId
+, appSessions :: !SessionsMap
+  -- | Application logger
+, appLogger :: !LoggerSet
 }
 
 -- | Make initial application state
 initAppState :: Config -> IO AppState 
 initAppState cfg@Config{..} = do 
   pool <- makePool configDatabase
+  logger <- newStdoutLoggerSet defaultBufSize
   let acfg = makeAuthConfig pool configAuth 
   return AppState {
       appPool = pool 
     , appAuth = acfg 
     , appConfig = cfg
     , appSessions = mempty
+    , appLogger = logger
     }
 
 -- | This type represents the effects we want to have for our application.
@@ -145,5 +159,13 @@ runAppInIO st = printException . flip evalStateT st . runApp
       Right a -> return a
 
 -- | Retrieve mapping from session to threads from app state
-getSessions :: App (H.HashMap Word ThreadId)
+getSessions :: App SessionsMap
 getSessions = gets appSessions
+
+-- | Update state of sessions 
+modifySessions :: (SessionsMap -> SessionsMap) -> App ()
+modifySessions f = modify' (\ st -> st { appSessions = f $ appSessions st })
+
+-- | Retrieve application logger from current state
+getLogger :: App LoggerSet
+getLogger = gets appLogger
