@@ -1,0 +1,1 @@
+hs-live-profile --RTS live-profile-test-app +RTS -lm -N4

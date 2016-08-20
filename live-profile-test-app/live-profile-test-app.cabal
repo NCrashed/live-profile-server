@@ -1,0 +1,22 @@
+name:                live-profile-test-app
+version:             0.1.0.0
+synopsis:            Test application for testing live profile monitor
+description:         Please see README.md
+homepage:            https://github.com/NCrashed/live-profile-test-app#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Anton Gushcha
+maintainer:          ncrashed@gmail.com
+copyright:           (c) 2016 Anton Gushcha
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable live-profile-test-app
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  ghc-options:         -eventlog -rtsopts -threaded
+  build-depends:       
+      base                    >= 4.7    && < 5
+    , live-profile-leech      >= 0.1    && < 0.2

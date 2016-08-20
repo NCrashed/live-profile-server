@@ -1,2 +1,4 @@
 .stack-work
 *.sublime-workspace
+events.pipe
+live-profile-test-app.eventlog

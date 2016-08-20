@@ -27,5 +27,10 @@
       "working_dir": "${project_path}/live-profile-server-frontend",
       "shell_cmd": "./compile.sh && firefox http://localhost:3000/index.html"    
     },
+    {
+      "name": "Debug app",
+      "working_dir": "${project_path}/live-profile-test-app",
+      "shell_cmd": "stack install --pedantic --compiler=ghc-8.1"    
+    },
   ]
 }
