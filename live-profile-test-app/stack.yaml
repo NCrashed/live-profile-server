@@ -39,7 +39,7 @@ packages:
 - '.'
 - location:
     git: https://github.com/NCrashed/live-profile-monitor.git
-    commit: 770c51503fc003f70df2df578cfb2eeb303425f5
+    commit: a0d5778b58524e4b27d6691edd8e4158f1b107c2
   subdirs:
     - './live-profile-protocol'
     - './live-profile-leech'

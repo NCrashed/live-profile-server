@@ -104,6 +104,18 @@ instance {-# OVERLAPPING #-} (
     return $ Field a :& as
   parseJSON _ = mzero
 
+instance {-# OVERLAPPING #-} (
+    KnownSymbol n
+  , FromJSON a
+  , FromJSON (FieldRec fs)
+  ) => FromJSON (FieldRec ('(n, NullablePatch a) ': fs)) where 
+  parseJSON js@(Object o) = do 
+    let n = pack $ symbolVal (Proxy :: Proxy n)
+    a <- o .:? n .!= NoPatch
+    as <- parseJSON js
+    return $ Field a :& as
+  parseJSON _ = mzero
+
 -- | Derive vinyl record fields that can be used as partial update payload for given fields record
 type family VinylPatchFields (fields :: [(Symbol, *)]) :: [(Symbol, *)] where
   VinylPatchFields '[] = '[]

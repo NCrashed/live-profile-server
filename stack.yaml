@@ -40,16 +40,18 @@ packages:
 - 'live-profile-server-backend'
 - 'servant-rest-derive'
 - 'servant-rest-derive-server'
-#- '../../servant-auth-token'
-#- '../../servant-auth-token-api'
-#- '../../aeson-injector'
+
 - location:
     git: https://github.com/NCrashed/live-profile-monitor.git
-    commit: 770c51503fc003f70df2df578cfb2eeb303425f5
+    commit: f36c307670069e5ea501faf5ad79c9c2fcc74b5e
   subdirs:
     - '.'
     - './live-profile-client'
     - './live-profile-protocol'
+# - '../live-profile-monitor'
+# - '../live-profile-monitor/live-profile-client'
+# - '../live-profile-monitor/live-profile-protocol'
+
 - location:
     git: https://github.com/NCrashed/ghc-events.git
     commit: 5427e8bc4b14328f25e0700d35c0f09bceb56501

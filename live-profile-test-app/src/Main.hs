@@ -6,11 +6,17 @@ import Debug.Trace
 
 import Profile.Live.Leech
 
+opts :: LeechOptions 
+opts = defaultLeechOptions {
+    leechBufferSize = 100
+  }
+
 main :: IO ()
-main = bracket (startLeech defaultLeechOptions) (const stopLeech) $ const $ go 0
+main = bracket (startLeech opts) (const stopLeech) $ const $ go 0
   where 
   go :: Int -> IO ()
   go i = do 
     traceEventIO $ "MyEvent" ++ show i
-    threadDelay 3000000
+    putStrLn $ "MyEvent" ++ show i
+    threadDelay 1000
     go (i+1)

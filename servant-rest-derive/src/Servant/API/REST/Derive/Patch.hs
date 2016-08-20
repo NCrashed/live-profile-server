@@ -67,7 +67,8 @@ instance ToJSON a => ToJSON (NullablePatch a) where
     ValuePatch a -> object ["value" .= a]
 
 instance FromJSON a => FromJSON (NullablePatch a) where 
-  parseJSON (Object o) = nullifyCase <|> (ValuePatch <$> o .: "value")
+  parseJSON (Object o) = nullifyCase 
+    <|> (ValuePatch <$> o .: "value")
     where 
     nullifyCase = do 
       b <- o .: "nullify"
