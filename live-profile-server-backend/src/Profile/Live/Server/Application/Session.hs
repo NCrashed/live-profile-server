@@ -17,6 +17,7 @@ module Profile.Live.Server.Application.Session(
 import Control.Lens 
 import Control.Monad 
 import Control.Monad.IO.Class 
+import Data.Aeson.Unit
 import Data.Monoid
 import Data.Proxy 
 import Data.Text (Text)
@@ -24,6 +25,7 @@ import Data.Text.Encoding
 import Data.Time 
 import Data.Vinyl
 import Database.Persist
+import Database.Persist.Sql (SqlPersistT)
 import Servant.API 
 import Servant.API.REST.Derive
 import Servant.API.REST.Derive.Server
@@ -48,6 +50,24 @@ sessionServer :: ServerT SessionAPI App
 sessionServer = restServer (Proxy :: Proxy '[ 'GET ]) 
   (Proxy :: Proxy Session) (Proxy :: Proxy "session")
   (Proxy :: Proxy App)
+  :<|> connectMethod
+  :<|> disconnectMethod
+
+-- | Open a session with given connection info
+connectMethod :: Id Connection 
+  -> App (Id Session)
+connectMethod i = do 
+  conn <- runDB404 "connection" $ get (VKey i)
+  openSession (Entity (VKey i) conn)
+
+-- | Close connection to given session
+disconnectMethod :: Id Session 
+  -> App Unit
+disconnectMethod i = do 
+  closeSession i 
+  t <- liftIO getCurrentTime
+  runDB $ setSessionEndTime i t
+  return Unit
 
 -- | Get currently running sessions from applicaiton state
 getRunningSessions :: App [Id Session]
@@ -60,11 +80,22 @@ sanitizeSessions :: App ()
 sanitizeSessions = do
   m <- getSessions
   runDB $ do 
-    let endField = DBField (Proxy :: Proxy '("end", Maybe UTCTime)) :: EntityField Session (Maybe UTCTime)
-    ess <- selectList [endField ==. Nothing] []
+    ess <- selectUnclosedSessions
     t <- liftIO getCurrentTime
-    forM_ ess $ \(Entity i es) -> whenNothing (H.lookup (unVKey i) m) $ do
-      update i [endField =. Just t]
+    forM_ ess $ \(Entity i _) -> whenNothing (H.lookup (unVKey i) m) $ do
+      setSessionEndTime (unVKey i) t
+
+-- | Selecting unclosed sesstion (with not set end time)
+selectUnclosedSessions :: SqlPersistT IO [Entity Session]
+selectUnclosedSessions = do 
+  let endField = DBField (Proxy :: Proxy '("end", Maybe UTCTime)) :: EntityField Session (Maybe UTCTime)
+  selectList [endField ==. Nothing] []
+
+-- | Update session end time in DB
+setSessionEndTime :: Id Session -> UTCTime -> SqlPersistT IO ()
+setSessionEndTime i t = do 
+  let endField = DBField (Proxy :: Proxy '("end", Maybe UTCTime)) :: EntityField Session (Maybe UTCTime)
+  update (VKey i) [endField =. Just t]
 
 -- | Open connection to remote profile monitor and update internal container
 -- of opened sessions. Also inserts new session to RDBMS.
@@ -87,10 +118,10 @@ openSession (Entity i conn) = do
 
   -- Define behavior with callbacks
   let bhv = ClientBehavior {
-            clientOnHeader = const $ return ()
-          , clientOnEvent = const $ return ()
-          , clientOnService = const $ return ()
-          , clientOnState = const $ return ()
+            clientOnHeader = print
+          , clientOnEvent = print
+          , clientOnService = print
+          , clientOnState = print
         }
 
   -- Start client
@@ -115,3 +146,15 @@ openSession (Entity i conn) = do
     case rs of 
       [] -> throw400' Error'FailedResolveAddress $ "Cannot resolve " <> host <> ":" <> showt port 
       (AddressInfo{..} : _) -> return socketAddress
+
+-- | Close running session of profiling and update app state.
+--
+-- Warning: Doesn't updates session in RDMBS.
+closeSession :: Id Session -> App ()
+closeSession i = do 
+  m <- getSessions
+  case H.lookup i m of 
+    Nothing -> return ()
+    Just (_, term) -> do 
+      terminateAndWait term 
+      modifySessions $ H.delete i
