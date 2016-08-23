@@ -43,14 +43,14 @@ packages:
 
 - location:
     git: https://github.com/NCrashed/live-profile-monitor.git
-    commit: f36c307670069e5ea501faf5ad79c9c2fcc74b5e
+    commit: fd4f7569cacc51f5a7cdb2090f469a581b06284c
   subdirs:
     - '.'
     - './live-profile-client'
     - './live-profile-protocol'
-# - '../live-profile-monitor'
-# - '../live-profile-monitor/live-profile-client'
-# - '../live-profile-monitor/live-profile-protocol'
+#- '../live-profile-monitor'
+#- '../live-profile-monitor/live-profile-client'
+#- '../live-profile-monitor/live-profile-protocol'
 
 - location:
     git: https://github.com/NCrashed/ghc-events.git

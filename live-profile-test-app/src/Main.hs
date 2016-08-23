@@ -17,6 +17,6 @@ main = bracket (startLeech opts) (const stopLeech) $ const $ go 0
   go :: Int -> IO ()
   go i = do 
     traceEventIO $ "MyEvent" ++ show i
-    putStrLn $ "MyEvent" ++ show i
+    --putStrLn $ "MyEvent" ++ show i
     threadDelay 1000
     go (i+1)
