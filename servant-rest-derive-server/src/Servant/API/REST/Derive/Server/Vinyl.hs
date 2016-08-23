@@ -157,12 +157,6 @@ instance (KnownSymbol n, PersistField a, FromVinylPersistValues (FieldRec as)) =
       n = pack $ symbolVal (Proxy :: Proxy n)
       fieldError err = "field " <> n <> ": " <> err
 
--- | Helper proof that 'a' symbol is within 'as'
-type family WithinFields (a :: (Symbol, *)) (as :: [(Symbol, *)]) :: Bool where 
-  WithinFields a '[] = 'False 
-  WithinFields a (a ': as) = 'True 
-  WithinFields a (b ': as) = WithinFields a as
-
 instance (Named (FieldRec fields)
         , DeriveEntityFields fields
         , ToVinylPersistFields (FieldRec fields)
