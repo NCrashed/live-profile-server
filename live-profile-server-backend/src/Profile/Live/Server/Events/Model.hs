@@ -51,15 +51,17 @@ EventTypeImpl
 
 EventImpl
   time Timestamp
-  spec EventInfoImplId
+  spec EventInfoImpl
   cap Int Maybe 
   deriving Show 
 
 ThreadStopStatusImpl 
   num Word 
   threadId ThreadId Maybe 
+  deriving Show 
 
 EventInfoImpl
+  type EventTypeNum -- decoder needs this field
   -- EventBlock
   endTime Timestamp Maybe
   cap Int Maybe -- Also TaskCreate, TaskMigrate,
@@ -214,6 +216,8 @@ EventInfoImpl
   name String Maybe 
   -- PerfCounter
   period Word64 Maybe
+
+  deriving Show 
 |]
 
 -- | Helper to decode from DB representation
@@ -320,6 +324,21 @@ toCapsetTypeImpl c = case c of
   CapsetUnknown -> 3
 
 -- | Helper to convert to DB representation
+toEventImpl :: Event -> EventImpl 
+toEventImpl Event{..} = EventImpl {
+    eventImplTime = evTime 
+  , eventImplSpec = toEventInfoImpl evSpec
+  , eventImplCap = evCap
+  }
+
+-- | Helper to convert from DB representation
+fromEventImpl :: EventImpl -> Maybe Event 
+fromEventImpl EventImpl{..} = Event 
+  <$> pure eventImplTime
+  <*> fromEventInfoImpl eventImplSpec
+  <*> pure eventImplCap
+
+-- | Helper to convert to DB representation
 toEventTypeImpl :: EventType -> EventTypeImpl 
 toEventTypeImpl EventType{..} = EventTypeImpl {
     eventTypeImplNum = num 
@@ -336,9 +355,10 @@ fromEventTypeImpl EventTypeImpl{..} = EventType {
   }
 
 -- | Helper to create event info row without data
-emptyEventInfoImpl :: EventInfoImpl 
-emptyEventInfoImpl = EventInfoImpl {
-    eventInfoImplEndTime = Nothing
+emptyEventInfoImpl :: EventTypeNum -> EventInfoImpl 
+emptyEventInfoImpl t = EventInfoImpl {
+    eventInfoImplType = t
+  , eventInfoImplEndTime = Nothing
   , eventInfoImplCap = Nothing
   , eventInfoImplBlockSize = Nothing
   , eventInfoImplRef = Nothing
@@ -414,47 +434,47 @@ emptyEventInfoImpl = EventInfoImpl {
 -- | Helper to convert to DB representation
 toEventInfoImpl :: EventInfo -> EventInfoImpl 
 toEventInfoImpl e = case e of 
-  EventBlock{..} -> emptyEventInfoImpl {
+  EventBlock{..} -> defImpl {
       eventInfoImplEndTime = Just end_time
     , eventInfoImplCap = Just cap 
     , eventInfoImplBlockSize = Just $ fromIntegral block_size
     }
-  UnknownEvent{..} -> emptyEventInfoImpl {
+  UnknownEvent{..} -> defImpl {
       eventInfoImplRef = Just ref
     }
-  Startup {..} -> emptyEventInfoImpl {
+  Startup {..} -> defImpl {
       eventInfoImplNCaps = Just n_caps
     }
-  Shutdown -> emptyEventInfoImpl
-  CreateThread {..} -> emptyEventInfoImpl {
+  Shutdown -> defImpl
+  CreateThread {..} -> defImpl {
       eventInfoImplThread = Just thread
     }
-  RunThread {..} -> emptyEventInfoImpl {
+  RunThread {..} -> defImpl {
       eventInfoImplThread = Just thread
     }
-  StopThread {..} -> emptyEventInfoImpl {
+  StopThread {..} -> defImpl {
       eventInfoImplThread = Just thread
     , eventInfoImplStatus = Just $ toThreadStopStatusImpl status
     }
-  ThreadRunnable {..} -> emptyEventInfoImpl {
+  ThreadRunnable {..} -> defImpl {
       eventInfoImplThread = Just thread
     }
-  MigrateThread {..} -> emptyEventInfoImpl {
+  MigrateThread {..} -> defImpl {
       eventInfoImplThread = Just thread
     , eventInfoImplNewCap = Just newCap
     }
-  WakeupThread {..} -> emptyEventInfoImpl {
+  WakeupThread {..} -> defImpl {
       eventInfoImplThread = Just thread 
     , eventInfoImplOtherCap = Just otherCap
     }
-  ThreadLabel {..} -> emptyEventInfoImpl {
+  ThreadLabel {..} -> defImpl {
       eventInfoImplThread = Just thread 
     , eventInfoImplThreadlabel = Just threadlabel
     }
-  CreateSparkThread {..} -> emptyEventInfoImpl {
+  CreateSparkThread {..} -> defImpl {
       eventInfoImplSparkThread = Just sparkThread
     }
-  SparkCounters {..} -> emptyEventInfoImpl {
+  SparkCounters {..} -> defImpl {
       eventInfoImplSparksCreated = Just sparksCreated
     , eventInfoImplSparksDud = Just sparksDud
     , eventInfoImplSparksOverflowed = Just sparksOverflowed
@@ -463,37 +483,37 @@ toEventInfoImpl e = case e of
     , eventInfoImplSparksGCd = Just sparksGCd
     , eventInfoImplSparksRemaining = Just sparksRemaining
     }
-  SparkCreate -> emptyEventInfoImpl
-  SparkDud -> emptyEventInfoImpl 
-  SparkOverflow -> emptyEventInfoImpl 
-  SparkRun -> emptyEventInfoImpl
-  SparkSteal {..} -> emptyEventInfoImpl {
+  SparkCreate -> defImpl
+  SparkDud -> defImpl 
+  SparkOverflow -> defImpl 
+  SparkRun -> defImpl
+  SparkSteal {..} -> defImpl {
       eventInfoImplVictimCap = Just victimCap
     }
-  SparkFizzle -> emptyEventInfoImpl
-  SparkGC -> emptyEventInfoImpl 
-  TaskCreate {..} -> emptyEventInfoImpl {
+  SparkFizzle -> defImpl
+  SparkGC -> defImpl 
+  TaskCreate {..} -> defImpl {
       eventInfoImplTaskId = Just taskId
     , eventInfoImplCap = Just cap
     , eventInfoImplTid = Just $ kernelThreadId tid
     }
-  TaskMigrate {..} -> emptyEventInfoImpl {
+  TaskMigrate {..} -> defImpl {
       eventInfoImplTaskId = Just taskId
     , eventInfoImplCap = Just cap
     , eventInfoImplNewCap = Just new_cap 
     }
-  TaskDelete {..} -> emptyEventInfoImpl {
+  TaskDelete {..} -> defImpl {
       eventInfoImplTaskId = Just taskId
     }
-  RequestSeqGC -> emptyEventInfoImpl 
-  RequestParGC -> emptyEventInfoImpl 
-  StartGC -> emptyEventInfoImpl 
-  GCWork -> emptyEventInfoImpl 
-  GCIdle -> emptyEventInfoImpl 
-  GCDone -> emptyEventInfoImpl 
-  EndGC -> emptyEventInfoImpl 
-  GlobalSyncGC -> emptyEventInfoImpl 
-  GCStatsGHC {..} -> emptyEventInfoImpl {
+  RequestSeqGC -> defImpl 
+  RequestParGC -> defImpl 
+  StartGC -> defImpl 
+  GCWork -> defImpl 
+  GCIdle -> defImpl 
+  GCDone -> defImpl 
+  EndGC -> defImpl 
+  GlobalSyncGC -> defImpl 
+  GCStatsGHC {..} -> defImpl {
       eventInfoImplHeapCapset = Just heapCapset
     , eventInfoImplGen = Just gen
     , eventInfoImplCopied = Just copied
@@ -503,19 +523,19 @@ toEventInfoImpl e = case e of
     , eventInfoImplParMaxCopied = Just parMaxCopied
     , eventInfoImplParTotCopied = Just parTotCopied
     }
-  HeapAllocated {..} -> emptyEventInfoImpl {
+  HeapAllocated {..} -> defImpl {
       eventInfoImplHeapCapset = Just heapCapset
     , eventInfoImplAllocBytes = Just allocBytes
     }
-  HeapSize {..} -> emptyEventInfoImpl {
+  HeapSize {..} -> defImpl {
       eventInfoImplHeapCapset = Just heapCapset
     , eventInfoImplSizeBytes = Just sizeBytes
     }
-  HeapLive {..} -> emptyEventInfoImpl {
+  HeapLive {..} -> defImpl {
       eventInfoImplHeapCapset = Just heapCapset
     , eventInfoImplLiveBytes = Just liveBytes
     }
-  HeapInfoGHC {..} -> emptyEventInfoImpl {
+  HeapInfoGHC {..} -> defImpl {
       eventInfoImplHeapCapset = Just heapCapset
     , eventInfoImplGens = Just gens
     , eventInfoImplMaxHeapSize = Just maxHeapSize
@@ -523,93 +543,93 @@ toEventInfoImpl e = case e of
     , eventInfoImplMblockSize = Just mblockSize
     , eventInfoImplBlockSize = Just blockSize
     }
-  CapCreate {..} -> emptyEventInfoImpl {
+  CapCreate {..} -> defImpl {
       eventInfoImplCap = Just cap
     }
-  CapDelete {..} -> emptyEventInfoImpl {
+  CapDelete {..} -> defImpl {
       eventInfoImplCap = Just cap
     }
-  CapDisable {..} -> emptyEventInfoImpl {
+  CapDisable {..} -> defImpl {
       eventInfoImplCap = Just cap
     }
-  CapEnable {..} -> emptyEventInfoImpl {
+  CapEnable {..} -> defImpl {
       eventInfoImplCap = Just cap
     }
-  CapsetCreate {..} -> emptyEventInfoImpl {
+  CapsetCreate {..} -> defImpl {
       eventInfoImplCapset = Just capset
     , eventInfoImplCapsetType = Just $ toCapsetTypeImpl capsetType
     }
-  CapsetDelete {..} -> emptyEventInfoImpl {
+  CapsetDelete {..} -> defImpl {
       eventInfoImplCapset = Just capset
     }
-  CapsetAssignCap {..} -> emptyEventInfoImpl {
+  CapsetAssignCap {..} -> defImpl {
       eventInfoImplCapset = Just capset
     , eventInfoImplCap = Just cap
     }
-  CapsetRemoveCap {..} -> emptyEventInfoImpl {
+  CapsetRemoveCap {..} -> defImpl {
       eventInfoImplCapset = Just capset
     , eventInfoImplCap = Just cap 
     }
-  RtsIdentifier {..} -> emptyEventInfoImpl {
+  RtsIdentifier {..} -> defImpl {
       eventInfoImplCapset = Just capset
     , eventInfoImplRtsident = Just rtsident
     }
-  ProgramArgs {..} -> emptyEventInfoImpl {
+  ProgramArgs {..} -> defImpl {
       eventInfoImplCapset = Just capset
     , eventInfoImplArgs = Just args
     }
-  ProgramEnv {..} -> emptyEventInfoImpl {
+  ProgramEnv {..} -> defImpl {
       eventInfoImplCapset = Just capset
     , eventInfoImplEnv = Just env
     }
-  OsProcessPid {..} -> emptyEventInfoImpl {
+  OsProcessPid {..} -> defImpl {
       eventInfoImplCapset = Just capset
     , eventInfoImplPid = Just pid
     }
-  OsProcessParentPid {..} -> emptyEventInfoImpl {
+  OsProcessParentPid {..} -> defImpl {
       eventInfoImplCapset = Just capset
     , eventInfoImplPpid = Just ppid
     }
-  WallClockTime {..} -> emptyEventInfoImpl {
+  WallClockTime {..} -> defImpl {
       eventInfoImplCapset = Just capset
     , eventInfoImplSec = Just sec
     , eventInfoImplNsec = Just nsec
     }
-  Message {..} -> emptyEventInfoImpl {
+  Message {..} -> defImpl {
       eventInfoImplMsg = Just msg
     }
-  UserMessage {..} -> emptyEventInfoImpl {
+  UserMessage {..} -> defImpl {
       eventInfoImplMsg = Just msg
     }
-  UserMarker {..} -> emptyEventInfoImpl {
+  UserMarker {..} -> defImpl {
       eventInfoImplMarkername = Just markername
     }
-  Version {..} -> emptyEventInfoImpl {
+  Version {..} -> defImpl {
       eventInfoImplVersion = Just version
     }
-  ProgramInvocation {..} -> emptyEventInfoImpl {
+  ProgramInvocation {..} -> defImpl {
       eventInfoImplCommandline = Just commandline
     }
-  CreateMachine {..} -> emptyEventInfoImpl {
+  CreateMachine {..} -> defImpl {
       eventInfoImplMachine = Just machine
     , eventInfoImplRealtime = Just realtime
     }
-  KillMachine {..} -> emptyEventInfoImpl {
+  KillMachine {..} -> defImpl {
       eventInfoImplMachine = Just machine 
     }
-  CreateProcess {..} -> emptyEventInfoImpl {
+  CreateProcess {..} -> defImpl {
       eventInfoImplProcess = Just process
     }
-  KillProcess {..} -> emptyEventInfoImpl {
+  KillProcess {..} -> defImpl {
       eventInfoImplProcess = Just process
     }
-  AssignThreadToProcess {..} -> emptyEventInfoImpl {
+  AssignThreadToProcess {..} -> defImpl {
       eventInfoImplThread = Just thread
     , eventInfoImplProcess = Just process
     }
-  EdenStartReceive -> emptyEventInfoImpl
-  EdenEndReceive -> emptyEventInfoImpl
-  SendMessage {..} -> emptyEventInfoImpl {
+  EdenStartReceive -> defImpl
+  EdenEndReceive -> defImpl
+  SendMessage {..} -> defImpl {
       eventInfoImplMesTag = Just $ toMessageTagImpl mesTag 
     , eventInfoImplSenderProcess = Just senderProcess
     , eventInfoImplSenderThread = Just senderThread 
@@ -617,7 +637,7 @@ toEventInfoImpl e = case e of
     , eventInfoImplReceiverProcess = Just receiverProcess 
     , eventInfoImplReceiverInport = Just receiverInport
     }
-  ReceiveMessage {..} -> emptyEventInfoImpl {
+  ReceiveMessage {..} -> defImpl {
       eventInfoImplMesTag = Just $ toMessageTagImpl mesTag
     , eventInfoImplReceiverProcess = Just receiverProcess
     , eventInfoImplReceiverInport = Just receiverInport
@@ -626,69 +646,71 @@ toEventInfoImpl e = case e of
     , eventInfoImplSenderThread = Just senderThread
     , eventInfoImplMessageSize = Just messageSize
     }
-  SendReceiveLocalMessage {..} -> emptyEventInfoImpl {
+  SendReceiveLocalMessage {..} -> defImpl {
       eventInfoImplMesTag = Just $ toMessageTagImpl mesTag
     , eventInfoImplSenderProcess = Just senderProcess
     , eventInfoImplSenderThread = Just senderThread
     , eventInfoImplReceiverProcess = Just receiverProcess
     , eventInfoImplReceiverInport = Just receiverInport
     }
-  InternString {..} -> emptyEventInfoImpl {
+  InternString {..} -> defImpl {
       eventInfoImplStr = Just str 
     , eventInfoImplSId = Just sId
     }
-  MerStartParConjunction {..} -> emptyEventInfoImpl {
+  MerStartParConjunction {..} -> defImpl {
       eventInfoImplDynId = Just dyn_id
     , eventInfoImplStaticId = Just static_id
     }
-  MerEndParConjunction {..} -> emptyEventInfoImpl {
+  MerEndParConjunction {..} -> defImpl {
       eventInfoImplDynId = Just dyn_id
     }
-  MerEndParConjunct {..} -> emptyEventInfoImpl {
+  MerEndParConjunct {..} -> defImpl {
       eventInfoImplDynId = Just dyn_id
     }
-  MerCreateSpark {..} -> emptyEventInfoImpl {
+  MerCreateSpark {..} -> defImpl {
       eventInfoImplDynId = Just dyn_id
     , eventInfoImplSparkId = Just spark_id
     }
-  MerFutureCreate {..} -> emptyEventInfoImpl {
+  MerFutureCreate {..} -> defImpl {
       eventInfoImplFutureId = Just future_id
     , eventInfoImplNameId = Just name_id
     }
-  MerFutureWaitNosuspend {..} -> emptyEventInfoImpl {
+  MerFutureWaitNosuspend {..} -> defImpl {
       eventInfoImplFutureId = Just future_id
     }
-  MerFutureWaitSuspended {..} -> emptyEventInfoImpl {
+  MerFutureWaitSuspended {..} -> defImpl {
       eventInfoImplFutureId = Just future_id
     }
-  MerFutureSignal {..} -> emptyEventInfoImpl {
+  MerFutureSignal {..} -> defImpl {
       eventInfoImplFutureId = Just future_id
     }
-  MerLookingForGlobalThread -> emptyEventInfoImpl 
-  MerWorkStealing  -> emptyEventInfoImpl 
-  MerLookingForLocalSpark -> emptyEventInfoImpl 
-  MerReleaseThread {..} -> emptyEventInfoImpl {
+  MerLookingForGlobalThread -> defImpl 
+  MerWorkStealing  -> defImpl 
+  MerLookingForLocalSpark -> defImpl 
+  MerReleaseThread {..} -> defImpl {
       eventInfoImplThreadId = Just thread_id
     }
-  MerCapSleeping -> emptyEventInfoImpl
-  MerCallingMain -> emptyEventInfoImpl 
-  PerfName {..} -> emptyEventInfoImpl {
+  MerCapSleeping -> defImpl
+  MerCallingMain -> defImpl 
+  PerfName {..} -> defImpl {
       eventInfoImplPerfNum = Just perfNum
     , eventInfoImplName = Just name
     }
-  PerfCounter {..} -> emptyEventInfoImpl {
+  PerfCounter {..} -> defImpl {
       eventInfoImplPerfNum = Just perfNum
     , eventInfoImplTid = Just $ kernelThreadId tid
     , eventInfoImplPeriod = Just period
     }
-  PerfTracepoint {..} -> emptyEventInfoImpl {
+  PerfTracepoint {..} -> defImpl {
       eventInfoImplPerfNum = Just perfNum
     , eventInfoImplTid = Just $ kernelThreadId tid
     }
+  where 
+  defImpl = emptyEventInfoImpl $ eventTypeNum e
 
 -- | Helper to reconstruct event info from RDBMS representation
-fromEventInfoImpl :: EventTypeNum -> EventInfoImpl -> Maybe EventInfo
-fromEventInfoImpl num EventInfoImpl{..} = case num of 
+fromEventInfoImpl :: EventInfoImpl -> Maybe EventInfo
+fromEventInfoImpl EventInfoImpl{..} = case eventInfoImplType of 
   EVENT_CREATE_THREAD -> CreateThread 
     <$> eventInfoImplThread
   EVENT_RUN_THREAD -> RunThread
@@ -899,3 +921,89 @@ fromEventInfoImpl num EventInfoImpl{..} = case num of
     <*> (fmap KernelThreadId eventInfoImplTid)
 
   _ -> UnknownEvent <$> eventInfoImplRef
+
+eventTypeNum :: EventInfo -> EventTypeNum
+eventTypeNum e = case e of
+    CreateThread {} -> EVENT_CREATE_THREAD
+    RunThread {} -> EVENT_RUN_THREAD
+    StopThread {} -> EVENT_STOP_THREAD
+    ThreadRunnable {} -> EVENT_THREAD_RUNNABLE
+    MigrateThread {} -> EVENT_MIGRATE_THREAD
+    Shutdown {} -> EVENT_SHUTDOWN
+    WakeupThread {} -> EVENT_THREAD_WAKEUP
+    ThreadLabel {}  -> EVENT_THREAD_LABEL
+    StartGC {} -> EVENT_GC_START
+    EndGC {} -> EVENT_GC_END
+    GlobalSyncGC {} -> EVENT_GC_GLOBAL_SYNC
+    RequestSeqGC {} -> EVENT_REQUEST_SEQ_GC
+    RequestParGC {} -> EVENT_REQUEST_PAR_GC
+    CreateSparkThread {} -> EVENT_CREATE_SPARK_THREAD
+    SparkCounters {} -> EVENT_SPARK_COUNTERS
+    SparkCreate   {} -> EVENT_SPARK_CREATE
+    SparkDud      {} -> EVENT_SPARK_DUD
+    SparkOverflow {} -> EVENT_SPARK_OVERFLOW
+    SparkRun      {} -> EVENT_SPARK_RUN
+    SparkSteal    {} -> EVENT_SPARK_STEAL
+    SparkFizzle   {} -> EVENT_SPARK_FIZZLE
+    SparkGC       {} -> EVENT_SPARK_GC
+    TaskCreate  {} -> EVENT_TASK_CREATE
+    TaskMigrate {} -> EVENT_TASK_MIGRATE
+    TaskDelete  {} -> EVENT_TASK_DELETE
+    Message {} -> EVENT_LOG_MSG
+    Startup {} -> EVENT_STARTUP
+    EventBlock {} -> EVENT_BLOCK_MARKER
+    UserMessage {} -> EVENT_USER_MSG
+    UserMarker  {} -> EVENT_USER_MARKER
+    GCIdle {} -> EVENT_GC_IDLE
+    GCWork {} -> EVENT_GC_WORK
+    GCDone {} -> EVENT_GC_DONE
+    GCStatsGHC{} -> EVENT_GC_STATS_GHC
+    HeapAllocated{} -> EVENT_HEAP_ALLOCATED
+    HeapSize{} -> EVENT_HEAP_SIZE
+    HeapLive{} -> EVENT_HEAP_LIVE
+    HeapInfoGHC{} -> EVENT_HEAP_INFO_GHC
+    CapCreate{} -> EVENT_CAP_CREATE
+    CapDelete{} -> EVENT_CAP_DELETE
+    CapDisable{} -> EVENT_CAP_DISABLE
+    CapEnable{} -> EVENT_CAP_ENABLE
+    CapsetCreate {} -> EVENT_CAPSET_CREATE
+    CapsetDelete {} -> EVENT_CAPSET_DELETE
+    CapsetAssignCap {} -> EVENT_CAPSET_ASSIGN_CAP
+    CapsetRemoveCap {} -> EVENT_CAPSET_REMOVE_CAP
+    RtsIdentifier {} -> EVENT_RTS_IDENTIFIER
+    ProgramArgs {} -> EVENT_PROGRAM_ARGS
+    ProgramEnv {} -> EVENT_PROGRAM_ENV
+    OsProcessPid {} -> EVENT_OSPROCESS_PID
+    OsProcessParentPid{} -> EVENT_OSPROCESS_PPID
+    WallClockTime{} -> EVENT_WALL_CLOCK_TIME
+    UnknownEvent ref -> ref
+    InternString {} -> EVENT_INTERN_STRING
+    Version {} -> EVENT_VERSION
+    ProgramInvocation {} -> EVENT_PROGRAM_INVOCATION
+    EdenStartReceive {} -> EVENT_EDEN_START_RECEIVE
+    EdenEndReceive {} -> EVENT_EDEN_END_RECEIVE
+    CreateProcess {} -> EVENT_CREATE_PROCESS
+    KillProcess {} -> EVENT_KILL_PROCESS
+    AssignThreadToProcess {} -> EVENT_ASSIGN_THREAD_TO_PROCESS
+    CreateMachine {} -> EVENT_CREATE_MACHINE
+    KillMachine {} -> EVENT_KILL_MACHINE
+    SendMessage {} -> EVENT_SEND_MESSAGE
+    ReceiveMessage {} -> EVENT_RECEIVE_MESSAGE
+    SendReceiveLocalMessage {} -> EVENT_SEND_RECEIVE_LOCAL_MESSAGE
+    MerStartParConjunction {} -> EVENT_MER_START_PAR_CONJUNCTION
+    MerEndParConjunction _ -> EVENT_MER_STOP_PAR_CONJUNCTION
+    MerEndParConjunct _ -> EVENT_MER_STOP_PAR_CONJUNCT
+    MerCreateSpark {} -> EVENT_MER_CREATE_SPARK
+    MerFutureCreate {} -> EVENT_MER_FUT_CREATE
+    MerFutureWaitNosuspend _ -> EVENT_MER_FUT_WAIT_NOSUSPEND
+    MerFutureWaitSuspended _ -> EVENT_MER_FUT_WAIT_SUSPENDED
+    MerFutureSignal _ -> EVENT_MER_FUT_SIGNAL
+    MerLookingForGlobalThread -> EVENT_MER_LOOKING_FOR_GLOBAL_CONTEXT
+    MerWorkStealing -> EVENT_MER_WORK_STEALING
+    MerLookingForLocalSpark -> EVENT_MER_LOOKING_FOR_LOCAL_SPARK
+    MerReleaseThread _ -> EVENT_MER_RELEASE_CONTEXT
+    MerCapSleeping -> EVENT_MER_ENGINE_SLEEPING
+    MerCallingMain -> EVENT_MER_CALLING_MAIN
+    PerfName       {} -> nEVENT_PERF_NAME
+    PerfCounter    {} -> nEVENT_PERF_COUNTER
+    PerfTracepoint {} -> nEVENT_PERF_TRACEPOINT
