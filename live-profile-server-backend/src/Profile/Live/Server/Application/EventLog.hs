@@ -11,6 +11,7 @@ module Profile.Live.Server.Application.EventLog(
     startEventLog
   , addEventLogType
   , addEventLogEvent
+  , addEventLogState
   ) where 
 
 import Control.Monad 

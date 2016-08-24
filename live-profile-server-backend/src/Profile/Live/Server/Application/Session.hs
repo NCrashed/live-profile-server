@@ -127,8 +127,8 @@ openSession (Entity i conn) = do
             clientOnHeader = run . runDB . 
               mapM_ (void . addEventLogType el) . eventTypes
           , clientOnEvent = run . runDB . void . addEventLogEvent el
-          , clientOnService = print
-          , clientOnState = print
+          , clientOnService = print -- TODO: add reaction to this
+          , clientOnState = run . runDB . void . addEventLogState el
         }
 
   -- Start client
