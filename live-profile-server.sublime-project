@@ -1,36 +1,39 @@
 {
+	"build_systems":
+	[
+		{
+			"name": "Stack",
+			"shell_cmd": "stack install",
+			"working_dir": "${project_path}"
+		},
+		{
+			"name": "Stack pedantic",
+			"shell_cmd": "stack install --pedantic",
+			"working_dir": "${project_path}"
+		},
+		{
+			"name": "Stack test",
+			"shell_cmd": "stack test",
+			"working_dir": "${project_path}"
+		},
+		{
+			"name": "GHCJS",
+			"shell_cmd": "./compile.sh && firefox http://localhost:3000/index.html",
+			"working_dir": "${project_path}/live-profile-server-frontend"
+		},
+		{
+			"name": "Debug app",
+			"shell_cmd": "stack install --pedantic --compiler=ghc-8.1",
+			"working_dir": "${project_path}/live-profile-test-app"
+		}
+	],
 	"folders":
 	[
 		{
 			"path": "."
+		},
+		{
+			"path": "/home/ncrashed/dev/hsoc/ghc-events"
 		}
-	],
-  "build_systems":
-  [
-    {
-      "name": "Stack",
-      "working_dir": "${project_path}",
-      "shell_cmd": "stack install"    
-    },
-    {
-      "name": "Stack pedantic",
-      "working_dir": "${project_path}",
-      "shell_cmd": "stack install --pedantic"    
-    },
-    {
-      "name": "Stack test",
-      "working_dir": "${project_path}",
-      "shell_cmd": "stack test"    
-    },
-    {
-      "name": "GHCJS",
-      "working_dir": "${project_path}/live-profile-server-frontend",
-      "shell_cmd": "./compile.sh && firefox http://localhost:3000/index.html"    
-    },
-    {
-      "name": "Debug app",
-      "working_dir": "${project_path}/live-profile-test-app",
-      "shell_cmd": "stack install --pedantic --compiler=ghc-8.1"    
-    },
-  ]
+	]
 }
