@@ -42,14 +42,17 @@ type CapsetTypeImpl = Word
 share [mkPersist sqlSettings
      , mkDeleteCascade sqlSettings
      , mkMigrate "migrateAll"] [persistLowerCase|
+EventLogImpl
 
 EventTypeImpl
+  eventLog EventLogImplId
   num EventTypeNum
   desc EventTypeDesc
   size EventTypeSize Maybe 
   deriving Show Eq 
 
 EventImpl
+  eventLog EventLogImplId
   time Timestamp
   spec EventInfoImpl
   cap Int Maybe 
@@ -324,9 +327,10 @@ toCapsetTypeImpl c = case c of
   CapsetUnknown -> 3
 
 -- | Helper to convert to DB representation
-toEventImpl :: Event -> EventImpl 
-toEventImpl Event{..} = EventImpl {
-    eventImplTime = evTime 
+toEventImpl :: EventLogImplId -> Event -> EventImpl 
+toEventImpl i Event{..} = EventImpl {
+    eventImplEventLog = i
+  , eventImplTime = evTime 
   , eventImplSpec = toEventInfoImpl evSpec
   , eventImplCap = evCap
   }
@@ -339,9 +343,10 @@ fromEventImpl EventImpl{..} = Event
   <*> pure eventImplCap
 
 -- | Helper to convert to DB representation
-toEventTypeImpl :: EventType -> EventTypeImpl 
-toEventTypeImpl EventType{..} = EventTypeImpl {
-    eventTypeImplNum = num 
+toEventTypeImpl :: EventLogImplId -> EventType -> EventTypeImpl 
+toEventTypeImpl i EventType{..} = EventTypeImpl {
+    eventTypeImplEventLog = i
+  , eventTypeImplNum = num 
   , eventTypeImplDesc = desc 
   , eventTypeImplSize = size 
   }
