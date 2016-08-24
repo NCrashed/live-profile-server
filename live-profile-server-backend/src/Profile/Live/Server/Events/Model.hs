@@ -1,7 +1,8 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-|
 Module      : Profile.Live.Server.Events.Model
 Description : DB representation of an eventlog event
@@ -12,6 +13,9 @@ Stability   : experimental
 Portability : Portable
 -}
 module Profile.Live.Server.Events.Model where
+
+#define EVENTLOG_CONSTANTS_ONLY
+#include "EventLogFormat.h"
 
 import Data.Word 
 import Database.Persist
@@ -681,3 +685,217 @@ toEventInfoImpl e = case e of
       eventInfoImplPerfNum = Just perfNum
     , eventInfoImplTid = Just $ kernelThreadId tid
     }
+
+-- | Helper to reconstruct event info from RDBMS representation
+fromEventInfoImpl :: EventTypeNum -> EventInfoImpl -> Maybe EventInfo
+fromEventInfoImpl num EventInfoImpl{..} = case num of 
+  EVENT_CREATE_THREAD -> CreateThread 
+    <$> eventInfoImplThread
+  EVENT_RUN_THREAD -> RunThread
+    <$> eventInfoImplThread
+  EVENT_STOP_THREAD -> StopThread
+    <$> eventInfoImplThread
+    <*> (fromThreadStopStatusImpl =<< eventInfoImplStatus)
+  EVENT_THREAD_RUNNABLE -> ThreadRunnable
+    <$> eventInfoImplThread
+  EVENT_MIGRATE_THREAD -> MigrateThread
+    <$> eventInfoImplThread
+    <*> eventInfoImplNewCap
+  EVENT_SHUTDOWN -> Just Shutdown
+  EVENT_THREAD_WAKEUP -> WakeupThread
+    <$> eventInfoImplThread
+    <*> eventInfoImplOtherCap
+  EVENT_THREAD_LABEL -> ThreadLabel
+    <$> eventInfoImplThread
+    <*> eventInfoImplThreadlabel
+  EVENT_GC_START -> Just StartGC
+  EVENT_GC_END -> Just EndGC
+  EVENT_GC_GLOBAL_SYNC -> Just GlobalSyncGC
+  EVENT_REQUEST_SEQ_GC -> Just RequestSeqGC
+  EVENT_REQUEST_PAR_GC -> Just RequestParGC
+  EVENT_CREATE_SPARK_THREAD -> CreateSparkThread
+    <$> eventInfoImplSparkThread
+  EVENT_SPARK_COUNTERS -> SparkCounters
+    <$> eventInfoImplSparksCreated
+    <*> eventInfoImplSparksDud
+    <*> eventInfoImplSparksOverflowed
+    <*> eventInfoImplSparksConverted
+    <*> eventInfoImplSparksFizzled
+    <*> eventInfoImplSparksGCd
+    <*> eventInfoImplSparksRemaining
+  EVENT_SPARK_CREATE -> Just SparkCreate
+  EVENT_SPARK_DUD -> Just SparkDud
+  EVENT_SPARK_OVERFLOW -> Just SparkOverflow
+  EVENT_SPARK_RUN -> Just SparkRun
+  EVENT_SPARK_STEAL -> SparkSteal
+    <$> eventInfoImplVictimCap
+  EVENT_SPARK_FIZZLE -> Just SparkFizzle
+  EVENT_SPARK_GC -> Just SparkGC
+  EVENT_TASK_CREATE -> TaskCreate
+    <$> eventInfoImplTaskId
+    <*> eventInfoImplCap 
+    <*> (fmap KernelThreadId eventInfoImplTid)
+  EVENT_TASK_MIGRATE -> TaskMigrate
+    <$> eventInfoImplTaskId
+    <*> eventInfoImplCap
+    <*> eventInfoImplNewCap
+  EVENT_TASK_DELETE -> TaskDelete
+    <$> eventInfoImplTaskId
+  EVENT_LOG_MSG -> Message 
+    <$> eventInfoImplMsg 
+  EVENT_STARTUP -> Startup
+    <$> eventInfoImplNCaps
+  EVENT_BLOCK_MARKER -> EventBlock
+    <$> eventInfoImplEndTime
+    <*> eventInfoImplCap 
+    <*> (fmap fromIntegral eventInfoImplBlockSize)
+  EVENT_USER_MSG -> UserMessage
+    <$> eventInfoImplMsg 
+  EVENT_USER_MARKER -> UserMarker
+    <$> eventInfoImplMarkername
+  EVENT_GC_IDLE -> Just GCIdle
+  EVENT_GC_WORK -> Just GCWork
+  EVENT_GC_DONE -> Just GCDone
+  EVENT_GC_STATS_GHC -> GCStatsGHC
+    <$> eventInfoImplHeapCapset
+    <*> eventInfoImplGen 
+    <*> eventInfoImplCopied
+    <*> eventInfoImplSlop
+    <*> eventInfoImplFrag
+    <*> eventInfoImplParNThreads
+    <*> eventInfoImplParMaxCopied
+    <*> eventInfoImplParTotCopied
+  EVENT_HEAP_ALLOCATED -> HeapAllocated
+    <$> eventInfoImplHeapCapset
+    <*> eventInfoImplAllocBytes
+  EVENT_HEAP_SIZE -> HeapSize
+    <$> eventInfoImplHeapCapset
+    <*> eventInfoImplSizeBytes
+  EVENT_HEAP_LIVE -> HeapLive
+    <$> eventInfoImplHeapCapset
+    <*> eventInfoImplLiveBytes
+  EVENT_HEAP_INFO_GHC -> HeapInfoGHC
+    <$> eventInfoImplHeapCapset
+    <*> eventInfoImplGens 
+    <*> eventInfoImplMaxHeapSize
+    <*> eventInfoImplAllocAreaSize
+    <*> eventInfoImplMblockSize
+    <*> eventInfoImplBlockSize
+  EVENT_CAP_CREATE -> CapCreate
+    <$> eventInfoImplCap 
+  EVENT_CAP_DELETE -> CapDelete
+    <$> eventInfoImplCap 
+  EVENT_CAP_DISABLE -> CapDisable
+    <$> eventInfoImplCap 
+  EVENT_CAP_ENABLE -> CapEnable
+    <$> eventInfoImplCap 
+  EVENT_CAPSET_CREATE -> CapsetCreate
+    <$> eventInfoImplCapset
+    <*> (fromCapsetTypeImpl =<< eventInfoImplCapsetType)
+  EVENT_CAPSET_DELETE -> CapsetDelete
+    <$> eventInfoImplCapset
+  EVENT_CAPSET_ASSIGN_CAP -> CapsetAssignCap
+    <$> eventInfoImplCapset
+    <*> eventInfoImplCap
+  EVENT_CAPSET_REMOVE_CAP -> CapsetRemoveCap
+    <$> eventInfoImplCapset 
+    <*> eventInfoImplCap
+  EVENT_RTS_IDENTIFIER -> RtsIdentifier
+    <$> eventInfoImplCapset 
+    <*> eventInfoImplRtsident
+  EVENT_PROGRAM_ARGS -> ProgramArgs
+    <$> eventInfoImplCapset 
+    <*> eventInfoImplArgs
+  EVENT_PROGRAM_ENV -> ProgramEnv
+    <$> eventInfoImplCapset 
+    <*> eventInfoImplEnv
+  EVENT_OSPROCESS_PID -> OsProcessPid
+    <$> eventInfoImplCapset 
+    <*> eventInfoImplPid
+  EVENT_OSPROCESS_PPID -> OsProcessParentPid
+    <$> eventInfoImplCapset 
+    <*> eventInfoImplPpid 
+  EVENT_WALL_CLOCK_TIME -> WallClockTime
+    <$> eventInfoImplCapset
+    <*> eventInfoImplSec 
+    <*> eventInfoImplNsec
+  EVENT_INTERN_STRING -> InternString 
+    <$> eventInfoImplStr 
+    <*> eventInfoImplSId
+  EVENT_VERSION -> Version
+    <$> eventInfoImplVersion
+  EVENT_PROGRAM_INVOCATION -> ProgramInvocation
+    <$> eventInfoImplCommandline
+  EVENT_EDEN_START_RECEIVE -> Just EdenStartReceive
+  EVENT_EDEN_END_RECEIVE -> Just EdenEndReceive
+  EVENT_CREATE_PROCESS -> CreateProcess
+    <$> eventInfoImplProcess
+  EVENT_KILL_PROCESS -> KillProcess
+    <$> eventInfoImplProcess
+  EVENT_ASSIGN_THREAD_TO_PROCESS -> AssignThreadToProcess
+    <$> eventInfoImplThread
+    <*> eventInfoImplProcess
+  EVENT_CREATE_MACHINE -> CreateMachine
+    <$> eventInfoImplMachine
+    <*> eventInfoImplRealtime
+  EVENT_KILL_MACHINE -> KillMachine
+    <$> eventInfoImplMachine
+  EVENT_SEND_MESSAGE -> SendMessage
+    <$> (fromMessageTagImpl =<< eventInfoImplMesTag)
+    <*> eventInfoImplSenderProcess
+    <*> eventInfoImplSenderThread
+    <*> eventInfoImplReceiverMachine
+    <*> eventInfoImplReceiverProcess
+    <*> eventInfoImplReceiverInport
+  EVENT_RECEIVE_MESSAGE -> ReceiveMessage
+    <$> (fromMessageTagImpl =<< eventInfoImplMesTag)
+    <*> eventInfoImplReceiverProcess
+    <*> eventInfoImplReceiverInport
+    <*> eventInfoImplSenderMachine
+    <*> eventInfoImplSenderProcess
+    <*> eventInfoImplSenderThread
+    <*> eventInfoImplMessageSize
+  EVENT_SEND_RECEIVE_LOCAL_MESSAGE -> SendReceiveLocalMessage
+    <$> (fromMessageTagImpl =<< eventInfoImplMesTag)
+    <*> eventInfoImplSenderProcess
+    <*> eventInfoImplSenderThread
+    <*> eventInfoImplReceiverProcess
+    <*> eventInfoImplReceiverInport
+  EVENT_MER_START_PAR_CONJUNCTION -> MerStartParConjunction
+    <$> eventInfoImplDynId
+    <*> eventInfoImplStaticId
+  EVENT_MER_STOP_PAR_CONJUNCTION -> MerEndParConjunction
+    <$> eventInfoImplDynId
+  EVENT_MER_STOP_PAR_CONJUNCT -> MerEndParConjunct
+    <$> eventInfoImplDynId
+  EVENT_MER_CREATE_SPARK -> MerCreateSpark
+    <$> eventInfoImplDynId
+    <*> eventInfoImplSparkId
+  EVENT_MER_FUT_CREATE -> MerFutureCreate
+    <$> eventInfoImplFutureId
+    <*> eventInfoImplNameId
+  EVENT_MER_FUT_WAIT_NOSUSPEND -> MerFutureWaitNosuspend
+    <$> eventInfoImplFutureId
+  EVENT_MER_FUT_WAIT_SUSPENDED -> MerFutureWaitSuspended
+    <$> eventInfoImplFutureId
+  EVENT_MER_FUT_SIGNAL -> MerFutureSignal
+    <$> eventInfoImplFutureId
+  EVENT_MER_LOOKING_FOR_GLOBAL_CONTEXT -> Just MerLookingForGlobalThread
+  EVENT_MER_WORK_STEALING -> Just MerWorkStealing
+  EVENT_MER_LOOKING_FOR_LOCAL_SPARK -> Just MerLookingForLocalSpark
+  EVENT_MER_RELEASE_CONTEXT -> MerReleaseThread
+    <$> eventInfoImplThreadId
+  EVENT_MER_ENGINE_SLEEPING -> Just MerCapSleeping
+  EVENT_MER_CALLING_MAIN -> Just MerCallingMain
+  nEVENT_PERF_NAME -> PerfName
+    <$> eventInfoImplPerfNum
+    <*> eventInfoImplName
+  nEVENT_PERF_COUNTER -> PerfCounter
+    <$> eventInfoImplPerfNum
+    <*> (fmap KernelThreadId eventInfoImplTid) 
+    <*> eventInfoImplPeriod
+  nEVENT_PERF_TRACEPOINT -> PerfTracepoint
+    <$> eventInfoImplPerfNum
+    <*> (fmap KernelThreadId eventInfoImplTid)
+
+  _ -> UnknownEvent <$> eventInfoImplRef
