@@ -48,6 +48,7 @@ EventTypeImpl
   num EventTypeNum
   desc EventTypeDesc
   size EventTypeSize Maybe 
+  EventTypeNumUnique eventLog num
   deriving Show Eq 
 
 EventImpl

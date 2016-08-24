@@ -26,6 +26,7 @@ import Data.Time
 import Data.Vinyl
 import Database.Persist
 import Database.Persist.Sql (SqlPersistT)
+import GHC.RTS.Events
 import Servant.API 
 import Servant.API.REST.Derive
 import Servant.API.REST.Derive.Server
@@ -117,10 +118,15 @@ openSession (Entity i conn) = do
   -- Create mutexes for termination of client thread
   term <- newTerminationPair
 
+  -- Allocate new eventlog 
+  el <- runDB startEventLog
+
   -- Define behavior with callbacks
+  run <- getAppRunner
   let bhv = ClientBehavior {
-            clientOnHeader = print
-          , clientOnEvent = print
+            clientOnHeader = run . runDB . 
+              mapM_ (void . addEventLogType el) . eventTypes
+          , clientOnEvent = run . runDB . void . addEventLogEvent el
           , clientOnService = print
           , clientOnState = print
         }
@@ -130,7 +136,6 @@ openSession (Entity i conn) = do
 
   -- Construct session and update state
   t <- liftIO getCurrentTime
-  el <- runDB startEventLog
   let sess :: Session 
       sess = Field (unVKey i) 
           :& Field t 
