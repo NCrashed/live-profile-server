@@ -85,7 +85,7 @@ sanitizeSessions = do
     forM_ ess $ \(Entity i _) -> whenNothing (H.lookup (unVKey i) m) $ do
       setSessionEndTime (unVKey i) t
 
--- | Selecting unclosed sesstion (with not set end time)
+-- | Selecting unclosed sessions (with not set end time)
 selectUnclosedSessions :: SqlPersistT IO [Entity Session]
 selectUnclosedSessions = do 
   let endField = DBField (Proxy :: Proxy '("end", Maybe UTCTime)) :: EntityField Session (Maybe UTCTime)

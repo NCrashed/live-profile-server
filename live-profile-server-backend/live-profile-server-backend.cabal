@@ -33,6 +33,7 @@ library
     Profile.Live.Server.Config.Auth
     Profile.Live.Server.Config.Database
     Profile.Live.Server.Error
+    Profile.Live.Server.Events.Model
     Profile.Live.Server.Models
     Profile.Live.Server.Monad
     Profile.Live.Server.Utils
@@ -45,6 +46,7 @@ library
     , bytestring                  >= 0.10     && < 0.11
     , fast-logger                 >= 2.4      && < 2.5
     , file-embed                  >= 0.0.10   && < 0.1
+    , ghc-events                  >= 0.5      && < 0.6
     , lens                        >= 4.14     && < 4.15
     , live-profile-client         >= 0.1      && < 0.2
     , live-profile-protocol       >= 0.1      && < 0.2
@@ -53,6 +55,7 @@ library
     , mtl                         >= 2.2      && < 2.3
     , persistent                  >= 2.2      && < 2.6
     , persistent-postgresql       >= 2.2      && < 2.6
+    , persistent-template         >= 2.5      && < 2.6
     , servant                     >= 0.7      && < 0.8
     , servant-auth-token          >= 0.2      && < 0.3
     , servant-rest-derive         >= 0.1      && < 0.2
@@ -68,7 +71,7 @@ library
     , wai                         >= 3.2      && < 3.3
     , wai-extra                   >= 3.0      && < 3.1
     , yaml                        >= 0.8      && < 0.9
-
+    
   default-extensions:
     DataKinds
     DeriveGeneric
