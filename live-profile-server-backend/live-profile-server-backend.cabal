@@ -28,6 +28,7 @@ library
   exposed-modules:
     Profile.Live.Server.Application
     Profile.Live.Server.Application.Connection
+    Profile.Live.Server.Application.EventLog
     Profile.Live.Server.Application.Session
     Profile.Live.Server.Config
     Profile.Live.Server.Config.Auth

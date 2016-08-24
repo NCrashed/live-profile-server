@@ -31,12 +31,14 @@ import Servant.API.REST.Derive.TH
 import Servant.Swagger 
 
 import Profile.Live.Server.API.Connection 
+import Profile.Live.Server.API.EventLog 
 
 -- | Session to remote application
 type Session = FieldRec '[
     '("connection", Id Connection)
   , '("start", UTCTime)
   , '("end", Maybe UTCTime)
+  , '("log", EventLogId)
   ]
 
 instance Named Session where 

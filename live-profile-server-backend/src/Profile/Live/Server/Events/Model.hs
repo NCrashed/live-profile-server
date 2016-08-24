@@ -18,10 +18,9 @@ module Profile.Live.Server.Events.Model where
 #include "EventLogFormat.h"
 
 import Data.Word 
-import Database.Persist
 import Database.Persist.TH 
 
-import GHC.RTS.Events 
+import GHC.RTS.Events
 
 type EventTypeNum = Word16
 type EventTypeDesc = String
@@ -914,14 +913,14 @@ fromEventInfoImpl EventInfoImpl{..} = case eventInfoImplType of
     <$> eventInfoImplThreadId
   EVENT_MER_ENGINE_SLEEPING -> Just MerCapSleeping
   EVENT_MER_CALLING_MAIN -> Just MerCallingMain
-  nEVENT_PERF_NAME -> PerfName
+  EVENT_PERF_NAME -> PerfName
     <$> eventInfoImplPerfNum
     <*> eventInfoImplName
-  nEVENT_PERF_COUNTER -> PerfCounter
+  EVENT_PERF_COUNTER -> PerfCounter
     <$> eventInfoImplPerfNum
     <*> (fmap KernelThreadId eventInfoImplTid) 
     <*> eventInfoImplPeriod
-  nEVENT_PERF_TRACEPOINT -> PerfTracepoint
+  EVENT_PERF_TRACEPOINT -> PerfTracepoint
     <$> eventInfoImplPerfNum
     <*> (fmap KernelThreadId eventInfoImplTid)
 
@@ -1009,6 +1008,6 @@ eventTypeNum e = case e of
     MerReleaseThread _ -> EVENT_MER_RELEASE_CONTEXT
     MerCapSleeping -> EVENT_MER_ENGINE_SLEEPING
     MerCallingMain -> EVENT_MER_CALLING_MAIN
-    PerfName       {} -> nEVENT_PERF_NAME
-    PerfCounter    {} -> nEVENT_PERF_COUNTER
-    PerfTracepoint {} -> nEVENT_PERF_TRACEPOINT
+    PerfName       {} -> EVENT_PERF_NAME
+    PerfCounter    {} -> EVENT_PERF_COUNTER
+    PerfTracepoint {} -> EVENT_PERF_TRACEPOINT

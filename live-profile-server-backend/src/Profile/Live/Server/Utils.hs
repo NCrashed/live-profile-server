@@ -10,8 +10,11 @@ Portability : Portable
 module Profile.Live.Server.Utils(
     showt
   , whenNothing
+  , fromKey
+  , toKey
   ) where
 
+import Database.Persist.Sql 
 import Data.Text (Text)
 
 import qualified Data.Text as T  
@@ -25,3 +28,13 @@ whenNothing :: Applicative m => Maybe a -> m () -> m ()
 whenNothing ma f = case ma of 
   Nothing -> f 
   Just _ -> pure ()
+
+-- | Shortcut to convert sql key
+fromKey :: (Integral a, ToBackendKey SqlBackend record) 
+  => Key record -> a 
+fromKey = fromIntegral . fromSqlKey
+
+-- | Shortcut to convert sql key
+toKey :: (Integral a, ToBackendKey SqlBackend record) 
+  => a -> Key record 
+toKey = toSqlKey . fromIntegral

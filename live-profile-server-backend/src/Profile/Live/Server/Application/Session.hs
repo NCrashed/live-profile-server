@@ -41,6 +41,7 @@ import qualified Data.HashMap.Strict as H
 import Profile.Live.Client
 import Profile.Live.Server.API.Connection
 import Profile.Live.Server.API.Session 
+import Profile.Live.Server.Application.EventLog
 import Profile.Live.Server.Error
 import Profile.Live.Server.Monad 
 import Profile.Live.Server.Utils
@@ -129,8 +130,13 @@ openSession (Entity i conn) = do
 
   -- Construct session and update state
   t <- liftIO getCurrentTime
+  el <- runDB startEventLog
   let sess :: Session 
-      sess = Field (unVKey i) :& Field t :& Field Nothing :& RNil  
+      sess = Field (unVKey i) 
+          :& Field t 
+          :& Field Nothing 
+          :& Field (fromKey el) 
+          :& RNil
   VKey sessId <- runDB $ insert sess 
   modifySessions $ H.insert sessId (tid, term)
 
