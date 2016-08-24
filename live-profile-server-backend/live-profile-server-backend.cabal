@@ -45,6 +45,7 @@ library
     , aeson                       >= 0.11     && < 1.1
     , aeson-injector              >= 1.0.5.1  && < 1.1
     , bytestring                  >= 0.10     && < 0.11
+    , containers                  >= 0.5      && < 0.6
     , fast-logger                 >= 2.4      && < 2.5
     , file-embed                  >= 0.0.10   && < 0.1
     , ghc-events                  >= 0.5      && < 0.6

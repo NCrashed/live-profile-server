@@ -20,7 +20,15 @@ module Profile.Live.Server.Events.Model where
 import Data.Word 
 import Database.Persist.TH 
 
+import qualified Data.HashMap.Strict as H 
+import qualified Data.Sequence as S 
+
 import GHC.RTS.Events
+
+import Profile.Live.Protocol.State
+import Profile.Live.Protocol.State.Capability 
+import Profile.Live.Protocol.State.Task
+import Profile.Live.Protocol.State.Thread 
 
 type EventTypeNum = Word16
 type EventTypeDesc = String
@@ -220,6 +228,83 @@ EventInfoImpl
   -- PerfCounter
   period Word64 Maybe
 
+  deriving Show 
+
+EventlogStateImpl 
+  eventLog EventLogImplId
+  gc Timestamp Maybe
+  time Timestamp
+
+ThreadExecutionStateImpl 
+  num Word 
+  status ThreadStopStatusImpl Maybe
+
+ThreadStateImpl 
+  state EventlogStateImplId
+  tid ThreadId 
+  label String Maybe 
+  cap Int 
+  execution ThreadExecutionStateImpl
+  sparkCount Int Maybe 
+  creationTimestamp Timestamp
+  lastTimestamp Timestamp
+
+CapsetStateImpl
+  state EventlogStateImplId
+  cid Capset 
+  type CapsetTypeImpl
+  lastTimestamp Timestamp
+  timestamp Timestamp
+  rtsIdent String 
+  osPid PID Maybe 
+  osParentPid PID Maybe 
+  wallSecs Word64
+  wallNsecs Word32
+  heapAllocated Word64
+  heapSize Word64
+  heapLive Word64
+  heapGens Int 
+  heapMaxSize Word64 
+  heapAllocAreaSize Word64
+  heapMBlockSize Word64
+  heapBlockSize Word64
+  gcTimestamp Timestamp Maybe 
+  gcCopied Word64
+  gcSlop Word64
+  gcFrag Word64
+  gcParThreads Int 
+  gcParMaxCopied Word64
+  gcParTotCopied Word64 
+  deriving Show 
+
+CapsetStateCap
+  state CapsetStateImplId
+  cap Int
+  deriving Show 
+
+CapsetStateArg 
+  state CapsetStateImplId
+  arg String 
+
+CapsetStateEnv
+  state CapsetStateImplId
+  env String 
+
+CapStateImpl 
+  state EventlogStateImplId
+  cid Int 
+  disabled Bool 
+  lastTimestamp Timestamp
+  timestamp Timestamp
+  deriving Show 
+
+TaskStateImpl 
+  state EventlogStateImplId
+  taskId TaskId 
+  cap Int 
+  tid KernelThreadIdImpl
+  timestamp Timestamp
+  lastTimestamp Timestamp
   deriving Show 
 |]
 
@@ -1012,3 +1097,207 @@ eventTypeNum e = case e of
     PerfName       {} -> EVENT_PERF_NAME
     PerfCounter    {} -> EVENT_PERF_COUNTER
     PerfTracepoint {} -> EVENT_PERF_TRACEPOINT
+
+-- | Helper to convert into DB representation
+toEventlogStateImpl :: EventLogImplId
+  -> EventlogState 
+  -> (EventlogStateImpl
+    , EventlogStateImplId -> [ThreadStateImpl]
+    , EventlogStateImplId -> [(
+        CapsetStateImpl
+      , CapsetStateImplId -> S.Seq CapsetStateCap
+      , CapsetStateImplId -> [CapsetStateArg]
+      , CapsetStateImplId -> [CapsetStateEnv] )]
+    , EventlogStateImplId -> [CapStateImpl]
+    , EventlogStateImplId -> [TaskStateImpl] )
+toEventlogStateImpl i EventlogState{..} = (impl, threads, capsets, caps, tasks)
+  where
+  impl = EventlogStateImpl {
+      eventlogStateImplEventLog = i
+    , eventlogStateImplGc = eventlogGC
+    , eventlogStateImplTime = eventlogTime
+    }
+  threads i = toThreadStateImpl i <$> H.elems eventlogThreads
+  capsets i = toCapsetStateImpl i <$> H.elems eventlogCapsets
+  caps i = toCapStateImpl i <$> H.elems eventlogCaps
+  tasks i = toTaskStateImpl i <$> H.elems eventlogTasks
+
+
+-- | Helper to convert from DB representation
+fromEventlogStateImpl :: EventlogStateImpl 
+  -> [ThreadStateImpl]
+  -> [(CapsetStateImpl
+    , [CapsetStateCap]
+    , [CapsetStateArg]
+    , [CapsetStateEnv])]
+  -> [CapStateImpl]
+  -> [TaskStateImpl]
+  -> Maybe EventlogState
+fromEventlogStateImpl EventlogStateImpl{..} threads capsets caps tasks = EventlogState
+  <$> (H.fromList . fmap (\v -> (threadId v, v)) <$> mapM fromThreadStateImpl threads)
+  <*> (H.fromList . fmap (\v -> (capsetStateId v, v)) <$> mapM (uncurry4 fromCapsetStateImpl) capsets)
+  <*> pure (H.fromList $ (\v -> (capStateId v, v)) . fromCapStateImpl <$> caps)
+  <*> pure (H.fromList $ (\v -> (taskStateId v, v)) . fromTaskStateImpl <$> tasks)
+  <*> pure eventlogStateImplGc
+  <*> pure eventlogStateImplTime
+
+uncurry4 :: (a -> b -> c -> d -> e) -> (a, b, c, d) -> e 
+uncurry4 f (a, b, c, d) = f a b c d 
+
+-- | Helper to convert into DB representation
+toThreadExecutionStateImpl :: ThreadExecutionState -> ThreadExecutionStateImpl
+toThreadExecutionStateImpl s = case s of 
+  ThreadCreated -> ThreadExecutionStateImpl 0 Nothing
+  ThreadQueued -> ThreadExecutionStateImpl 1 Nothing
+  ThreadRunning -> ThreadExecutionStateImpl 2 Nothing
+  ThreadStopped status -> ThreadExecutionStateImpl 3 (Just $ toThreadStopStatusImpl status)
+  ThreadMigrated -> ThreadExecutionStateImpl 4 Nothing
+
+-- | Helper to convert from DB representation
+fromThreadExecutionStateImpl :: ThreadExecutionStateImpl -> Maybe ThreadExecutionState
+fromThreadExecutionStateImpl (ThreadExecutionStateImpl i mstatus) = case i of 
+  0 -> Just ThreadCreated
+  1 -> Just ThreadQueued
+  2 -> Just ThreadRunning
+  3 -> ThreadStopped <$> (fromThreadStopStatusImpl =<< mstatus)
+  4 -> Just ThreadMigrated
+
+-- | Helper to convert into DB representation
+toThreadStateImpl :: EventlogStateImplId -> ThreadState -> ThreadStateImpl 
+toThreadStateImpl i ThreadState{..} = ThreadStateImpl {
+    threadStateImplState = i
+  , threadStateImplTid = threadId
+  , threadStateImplLabel = threadLabel
+  , threadStateImplCap = threadCap
+  , threadStateImplExecution = toThreadExecutionStateImpl threadExecution
+  , threadStateImplSparkCount = threadSparkCount
+  , threadStateImplCreationTimestamp = threadCreationTimestamp
+  , threadStateImplLastTimestamp = threadLastTimestamp
+  }
+
+-- | Helper to convert from DB implementation
+fromThreadStateImpl :: ThreadStateImpl -> Maybe ThreadState 
+fromThreadStateImpl ThreadStateImpl{..} = (\e -> ThreadState {
+    threadId = threadStateImplTid 
+  , threadLabel = threadStateImplLabel 
+  , threadCap = threadStateImplCap 
+  , threadExecution = e
+  , threadSparkCount = threadStateImplSparkCount 
+  , threadCreationTimestamp = threadStateImplCreationTimestamp 
+  , threadLastTimestamp = threadStateImplLastTimestamp 
+  }) <$> fromThreadExecutionStateImpl threadStateImplExecution
+
+-- | Helper to convert to DB representation
+toCapStateImpl :: EventlogStateImplId -> CapState -> CapStateImpl 
+toCapStateImpl i CapState{..} = CapStateImpl {
+    capStateImplState = i
+  , capStateImplCid = capStateId
+  , capStateImplDisabled = capStateDisabled
+  , capStateImplLastTimestamp = capStateLastTimestamp
+  , capStateImplTimestamp = capStateTimestamp
+  }
+
+-- | Helper to convert from DB representation
+fromCapStateImpl :: CapStateImpl -> CapState 
+fromCapStateImpl CapStateImpl{..} = CapState {
+    capStateId = capStateImplCid 
+  , capStateDisabled = capStateImplDisabled 
+  , capStateLastTimestamp = capStateImplLastTimestamp 
+  , capStateTimestamp = capStateImplTimestamp 
+  }
+
+-- | Helper to convert into DB representation
+toCapsetStateImpl :: EventlogStateImplId -> CapsetState 
+  -> (CapsetStateImpl
+    , CapsetStateImplId -> S.Seq CapsetStateCap
+    , CapsetStateImplId -> [CapsetStateArg]
+    , CapsetStateImplId -> [CapsetStateEnv] )
+toCapsetStateImpl i CapsetState{..} = (impl, caps, args, envs)
+  where 
+  impl = CapsetStateImpl {
+      capsetStateImplState = i
+    , capsetStateImplCid = capsetStateId
+    , capsetStateImplType = toCapsetTypeImpl capsetStateType
+    , capsetStateImplLastTimestamp = capsetStateLastTimestamp
+    , capsetStateImplTimestamp = capsetStateTimestamp
+    , capsetStateImplRtsIdent = capsetStateRtsIdent
+    , capsetStateImplOsPid = capsetStateOsPid
+    , capsetStateImplOsParentPid = capsetStateOsParentPid
+    , capsetStateImplWallSecs = capsetStateWallSecs
+    , capsetStateImplWallNsecs = capsetStateWallNsecs
+    , capsetStateImplHeapAllocated = capsetStateHeapAllocated
+    , capsetStateImplHeapSize = capsetStateHeapSize
+    , capsetStateImplHeapLive = capsetStateHeapLive
+    , capsetStateImplHeapGens = capsetStateHeapGens
+    , capsetStateImplHeapMaxSize = capsetStateHeapMaxSize
+    , capsetStateImplHeapAllocAreaSize = capsetStateHeapAllocAreaSize
+    , capsetStateImplHeapMBlockSize = capsetStateHeapMBlockSize
+    , capsetStateImplHeapBlockSize = capsetStateHeapBlockSize
+    , capsetStateImplGcTimestamp = capsetStateGCTimestamp
+    , capsetStateImplGcCopied = capsetStateGCCopied
+    , capsetStateImplGcSlop = capsetStateGCSlop
+    , capsetStateImplGcFrag = capsetStateGCFrag
+    , capsetStateImplGcParThreads = capsetStateGCParThreads
+    , capsetStateImplGcParMaxCopied = capsetStateGCParMaxCopied
+    , capsetStateImplGcParTotCopied = capsetStateGCParTotCopied
+    }
+  caps i = CapsetStateCap i <$> capsetStateCaps
+  args i = CapsetStateArg i <$> capsetStateArgs
+  envs i = CapsetStateEnv i <$> capsetStateEnvs 
+
+-- | Helper to convert from DB representation
+fromCapsetStateImpl :: CapsetStateImpl 
+  -> [CapsetStateCap]
+  -> [CapsetStateArg]
+  -> [CapsetStateEnv]
+  -> Maybe CapsetState 
+fromCapsetStateImpl CapsetStateImpl{..} caps args envs = (\ct -> CapsetState {
+    capsetStateId = capsetStateImplCid
+  , capsetStateType = ct
+  , capsetStateLastTimestamp = capsetStateImplLastTimestamp 
+  , capsetStateTimestamp = capsetStateImplTimestamp 
+  , capsetStateRtsIdent = capsetStateImplRtsIdent 
+  , capsetStateOsPid = capsetStateImplOsPid 
+  , capsetStateOsParentPid = capsetStateImplOsParentPid 
+  , capsetStateWallSecs = capsetStateImplWallSecs 
+  , capsetStateWallNsecs = capsetStateImplWallNsecs 
+  , capsetStateHeapAllocated = capsetStateImplHeapAllocated 
+  , capsetStateHeapSize = capsetStateImplHeapSize 
+  , capsetStateHeapLive = capsetStateImplHeapLive 
+  , capsetStateHeapGens = capsetStateImplHeapGens 
+  , capsetStateHeapMaxSize = capsetStateImplHeapMaxSize 
+  , capsetStateHeapAllocAreaSize = capsetStateImplHeapAllocAreaSize 
+  , capsetStateHeapMBlockSize = capsetStateImplHeapMBlockSize 
+  , capsetStateHeapBlockSize = capsetStateImplHeapBlockSize 
+  , capsetStateGCTimestamp = capsetStateImplGcTimestamp 
+  , capsetStateGCCopied = capsetStateImplGcCopied 
+  , capsetStateGCSlop = capsetStateImplGcSlop 
+  , capsetStateGCFrag = capsetStateImplGcFrag 
+  , capsetStateGCParThreads = capsetStateImplGcParThreads 
+  , capsetStateGCParMaxCopied = capsetStateImplGcParMaxCopied 
+  , capsetStateGCParTotCopied = capsetStateImplGcParTotCopied 
+
+  , capsetStateCaps = S.fromList $ (\(CapsetStateCap _ v) -> v) <$> caps
+  , capsetStateArgs = (\(CapsetStateArg _ v) -> v) <$> args
+  , capsetStateEnvs = (\(CapsetStateEnv _ v) -> v) <$> envs
+  } ) <$> fromCapsetTypeImpl capsetStateImplType
+
+-- | Helper to convert into DB representation
+toTaskStateImpl :: EventlogStateImplId -> TaskState -> TaskStateImpl
+toTaskStateImpl i TaskState{..} = TaskStateImpl {
+    taskStateImplState = i
+  , taskStateImplTaskId = taskStateId
+  , taskStateImplCap = taskStateCap
+  , taskStateImplTid = kernelThreadId taskStateTid
+  , taskStateImplTimestamp = taskStateTimestamp
+  , taskStateImplLastTimestamp = taskStateLastTimestamp
+  }
+
+fromTaskStateImpl :: TaskStateImpl -> TaskState 
+fromTaskStateImpl TaskStateImpl{..} = TaskState {
+    taskStateId = taskStateImplTaskId 
+  , taskStateCap = taskStateImplCap 
+  , taskStateTid = KernelThreadId taskStateImplTid 
+  , taskStateTimestamp = taskStateImplTimestamp 
+  , taskStateLastTimestamp = taskStateImplLastTimestamp 
+  }

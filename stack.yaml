@@ -43,7 +43,7 @@ packages:
 
 - location:
     git: https://github.com/NCrashed/live-profile-monitor.git
-    commit: 125f70a97146016295a401dc82b63e05561c67f1
+    commit: fbdac8ed6172cea43663762ac5b227f86c0b38d6
   subdirs:
     - '.'
     - './live-profile-client'
