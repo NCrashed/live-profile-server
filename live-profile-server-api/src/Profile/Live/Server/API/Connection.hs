@@ -10,6 +10,7 @@ Portability : Portable
 -}
 module Profile.Live.Server.API.Connection(
     ConnectionAPI
+  , connectionAPI
   -- * Data types
   , Connection
   , ConnectionPatch(..)
@@ -46,6 +47,10 @@ $(declareVinylPatch ''Connection)
 -- | API about connections to remote Haskell applications that we profile
 type ConnectionAPI = "connection" 
   :> RESTFull Connection "connection"
+
+-- | Helper to carry 'ConnectionAPI' type around
+connectionAPI :: Proxy ConnectionAPI
+connectionAPI = Proxy 
 
 -- | Select only operations of the Connection API
 connectionOperations :: Traversal' Swagger Operation

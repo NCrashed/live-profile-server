@@ -31,10 +31,10 @@ data BinsLine = BinsLine {
 }
 
 mkBins :: BinsLine -> Diagram B
-mkBins BinsLine{..} = label ||| offset ||| bins
+mkBins BinsLine{..} = label ||| offset' ||| bins
   where 
   label = font "Georgia, serif" (fontSize 3 (D.text binsName)) ||| strutX 1
-  offset = strutX (fromIntegral binsOffset)
+  offset' = strutX (fromIntegral binsOffset)
   bins = hcat $ V.toList $ mkBin <$> binsValues
   mkBin d = square 1 # fc (blend d binsColor white)
 
@@ -67,7 +67,7 @@ mkTimeLine tl@TimeLine{..} = strutX 2 ||| (tline <> ticks <> labels) ||| strutX 
   labels = mconcat [ mkLabel i | i <- [0 .. n], isBigTick i]
 
 binedDiagram :: P2 Double -> Diagram B
-binedDiagram p = frame 0.1 (tline' === strutY 0.5 === bins')
+binedDiagram _ = frame 0.1 (tline' === strutY 0.5 === bins')
   where 
   tline' = mkTimeLine tline
   tline = TimeLine 0 10 5 maxn
