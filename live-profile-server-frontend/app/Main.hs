@@ -16,11 +16,14 @@ import Text.Printf
 import qualified Data.Text as T 
 import qualified Data.Vector as V
 
-import Profile.Live.Server.Client.Bined
 import Profile.Live.Server.API.Connection 
+import Profile.Live.Server.Client.Auth.Widget
+import Profile.Live.Server.Client.Bined
 
 main :: IO ()
-main = mainWidget $ connectionsWidget
+main = mainWidget $ do
+  tok <- authWidget 30
+  connectionsWidget
 
 showt :: Show a => a -> Text 
 showt = T.pack . show

@@ -22,7 +22,9 @@ library
     Profile.Live.Server.Client
     Profile.Live.Server.Client.Async
     Profile.Live.Server.Client.Auth
+    Profile.Live.Server.Client.Auth.Widget
     Profile.Live.Server.Client.Bined
+    Profile.Live.Server.Client.Bootstrap.Modal
     Profile.Live.Server.Client.Connection
   build-depends:       
       base                  >= 4.7      && < 5
