@@ -6,19 +6,25 @@
 {-# LANGUAGE OverloadedLists #-}
 module Main where
 
+import Data.Aeson.WithField
 import Data.Monoid 
 import Data.Text (Text)
 import Data.Vinyl
 import Reflex as R
 import Reflex.Dom as R
+import Servant.API.Auth.Token
+import Servant.API.Auth.Token.Pagination
+import Servant.API.REST.Derive
 import Text.Printf
 
 import qualified Data.Text as T 
 import qualified Data.Vector as V
 
 import Profile.Live.Server.API.Connection 
+import Profile.Live.Server.Client.Async 
 import Profile.Live.Server.Client.Auth.Widget
 import Profile.Live.Server.Client.Bined
+import Profile.Live.Server.Client.Connection
 
 main :: IO ()
 main = mainWidget $ do
@@ -36,7 +42,7 @@ notAuthWidget :: MonadWidget t m => m ()
 notAuthWidget = el "h1" $ text "Authorise please" 
 
 connectionsWidget :: forall t m . MonadWidget t m => SimpleToken -> m ()
-connectionsWidget _ = do 
+connectionsWidget token = do 
   mapM_ renderConnection cons
   where 
   cons :: [Connection]
@@ -60,14 +66,17 @@ connectionsWidget _ = do
         del <- blueButton "Delete"
         return ()
 
-  requestConns :: m (Event [Connection])
-  requestConns = do 
-    let mkSignin (login, pass) = authSignin (Just login) (Just pass) (Just $ prolongedExpire touchSecs)
-    reqEv <- asyncAjax mkSignin acceptEv'
+  requestConns :: Event t (a, b) -> m (Event t [WithId (Id Connection) Connection])
+  requestConns e = do 
+    let mkSignin (login, pass) = connList (Just 0) Nothing (Just (Token token))
+    reqEv <- asyncAjax mkSignin e
     widgetHold (pure ()) $ ffor reqEv $ \resp -> case resp of 
       Left er -> danger er 
       Right _ -> return ()    
-    let tokenEv = toMaybe . (fmap (\(OnlyField t) -> t)) <$> reqEv
+    let itemsE = either (const []) pagedListItems <$> reqEv
+    return itemsE 
+
+  danger = elClass "div" "alert alert-danger" . text 
 
 blueButton :: MonadWidget t m => String -> m (Event t ())
 blueButton s = do
