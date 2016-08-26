@@ -18,3 +18,4 @@ auth:
 
 static: "./static/"
 port: 3000
+pageSize: 50

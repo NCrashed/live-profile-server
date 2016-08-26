@@ -60,6 +60,15 @@ connectionsWidget _ = do
         del <- blueButton "Delete"
         return ()
 
+  requestConns :: m (Event [Connection])
+  requestConns = do 
+    let mkSignin (login, pass) = authSignin (Just login) (Just pass) (Just $ prolongedExpire touchSecs)
+    reqEv <- asyncAjax mkSignin acceptEv'
+    widgetHold (pure ()) $ ffor reqEv $ \resp -> case resp of 
+      Left er -> danger er 
+      Right _ -> return ()    
+    let tokenEv = toMaybe . (fmap (\(OnlyField t) -> t)) <$> reqEv
+
 blueButton :: MonadWidget t m => String -> m (Event t ())
 blueButton s = do
   (e, _) <- elAttr' "button" [("type", "button")

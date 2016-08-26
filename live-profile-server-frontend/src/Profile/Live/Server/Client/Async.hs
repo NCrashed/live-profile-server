@@ -10,6 +10,7 @@ import Control.Monad.Trans.Either
 import Data.Aeson.Unit 
 import Data.Aeson.WithField
 import GHC.TypeLits 
+import Servant.API.Auth.Token.Pagination
 import Servant.Client 
 
 import GHCJS.Marshal
@@ -75,4 +76,10 @@ instance (ToJSON a, KnownSymbol f) => ToJSVal (OnlyField f a) where
   toJSVal = toJSVal_aeson
 
 instance (FromJSON a, KnownSymbol f) => FromJSVal (OnlyField f a) where 
+  fromJSVal = fromJSVal_aeson
+
+instance (ToJSON a, ToJSON b) => ToJSVal (PagedList a b) where 
+  toJSVal = toJSVal_aeson
+
+instance (FromJSON a, FromJSON b) => FromJSVal (PagedList a b) where 
   fromJSVal = fromJSVal_aeson

@@ -39,9 +39,9 @@ addEventLogState lid s = do
   let (impl, threads, capsets, caps, tasks) = toEventlogStateImpl lid s 
   si <- insert impl 
   mapM_ (void . insert) $ threads si
-  forM_ (capsets si) $ \(cs, caps, args, envs) -> do 
+  forM_ (capsets si) $ \(cs, cps, args, envs) -> do 
     ci <- insert cs 
-    mapM_ (void . insert) $ caps ci
+    mapM_ (void . insert) $ cps ci
     mapM_ (void . insert) $ args ci 
     mapM_ (void . insert) $ envs ci 
   mapM_ (void . insert) $ caps si 

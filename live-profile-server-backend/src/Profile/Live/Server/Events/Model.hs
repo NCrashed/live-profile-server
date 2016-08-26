@@ -1117,10 +1117,10 @@ toEventlogStateImpl i EventlogState{..} = (impl, threads, capsets, caps, tasks)
     , eventlogStateImplGc = eventlogGC
     , eventlogStateImplTime = eventlogTime
     }
-  threads i = toThreadStateImpl i <$> H.elems eventlogThreads
-  capsets i = toCapsetStateImpl i <$> H.elems eventlogCapsets
-  caps i = toCapStateImpl i <$> H.elems eventlogCaps
-  tasks i = toTaskStateImpl i <$> H.elems eventlogTasks
+  threads k = toThreadStateImpl k <$> H.elems eventlogThreads
+  capsets k = toCapsetStateImpl k <$> H.elems eventlogCapsets
+  caps k = toCapStateImpl k <$> H.elems eventlogCaps
+  tasks k = toTaskStateImpl k <$> H.elems eventlogTasks
 
 
 -- | Helper to convert from DB representation
@@ -1161,6 +1161,7 @@ fromThreadExecutionStateImpl (ThreadExecutionStateImpl i mstatus) = case i of
   2 -> Just ThreadRunning
   3 -> ThreadStopped <$> (fromThreadStopStatusImpl =<< mstatus)
   4 -> Just ThreadMigrated
+  _ -> Nothing
 
 -- | Helper to convert into DB representation
 toThreadStateImpl :: EventlogStateImplId -> ThreadState -> ThreadStateImpl 
@@ -1241,9 +1242,9 @@ toCapsetStateImpl i CapsetState{..} = (impl, caps, args, envs)
     , capsetStateImplGcParMaxCopied = capsetStateGCParMaxCopied
     , capsetStateImplGcParTotCopied = capsetStateGCParTotCopied
     }
-  caps i = CapsetStateCap i <$> capsetStateCaps
-  args i = CapsetStateArg i <$> capsetStateArgs
-  envs i = CapsetStateEnv i <$> capsetStateEnvs 
+  caps k = CapsetStateCap k <$> capsetStateCaps
+  args k = CapsetStateArg k <$> capsetStateArgs
+  envs k = CapsetStateEnv k <$> capsetStateEnvs 
 
 -- | Helper to convert from DB representation
 fromCapsetStateImpl :: CapsetStateImpl 

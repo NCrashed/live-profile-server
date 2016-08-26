@@ -60,6 +60,7 @@ library
     , persistent-template         >= 2.5      && < 2.6
     , servant                     >= 0.7      && < 0.8
     , servant-auth-token          >= 0.2      && < 0.3
+    , servant-auth-token-api      >= 0.2      && < 0.3
     , servant-rest-derive         >= 0.1      && < 0.2
     , servant-rest-derive-server  >= 0.1      && < 0.2
     , servant-server              >= 0.7      && < 0.8

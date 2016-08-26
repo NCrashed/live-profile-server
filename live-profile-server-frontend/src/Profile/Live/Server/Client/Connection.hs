@@ -4,6 +4,7 @@ module Profile.Live.Server.Client.Connection(
   , connPut
   , connPatch
   , connDelete
+  , connList
   ) where 
 
 import Control.Monad.Trans.Either
@@ -12,6 +13,7 @@ import Data.Aeson.WithField
 import GHCJS.Marshal
 import Servant.API
 import Servant.API.Auth.Token
+import Servant.API.Auth.Token.Pagination
 import Servant.API.REST.Derive
 import Servant.Client 
 
@@ -42,14 +44,18 @@ connDelete :: Id Connection
   -> ConnPerm "delete-"
   -> EitherT ServantError IO Unit
 
+connList :: Maybe Page 
+  -> Maybe PageSize 
+  -> MToken' '["read-connection"]
+  -> EitherT ServantError IO (PagedList (Id Connection) Connection)
 
-(      connGet
+(      (connGet
   :<|> connPost
   :<|> connPut
   :<|> connPatch
-  :<|> connDelete
-    ) = client connectionAPI host
-  where host = Nothing -- Just $ BaseUrl Http "localhost" 3000
+  :<|> connDelete)
+  :<|> connList
+    ) = client connectionAPI Nothing
 
 instance ToJSVal ConnectionPatch where 
   toJSVal = toJSVal_aeson

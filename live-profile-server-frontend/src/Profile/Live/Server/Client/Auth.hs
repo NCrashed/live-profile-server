@@ -172,5 +172,3 @@ instance FromJSVal RespUserInfo where
   fromJSVal = fromJSVal_aeson
 instance FromJSVal UserGroup where 
   fromJSVal = fromJSVal_aeson
-instance (FromJSON a, FromJSON b) => FromJSVal (PagedList a b) where 
-  fromJSVal = fromJSVal_aeson

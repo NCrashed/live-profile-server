@@ -52,6 +52,8 @@ data Config = Config {
 , configAuth :: AuthSettings
 -- | Port that the app should listen
 , configPort :: Word 
+-- | Default page size for paged output
+, configPageSize :: Word 
 } deriving (Generic)
 
 $(deriveJSON (derivePrefix "config") ''Config)

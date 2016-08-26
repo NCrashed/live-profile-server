@@ -30,14 +30,17 @@ module Profile.Live.Server.Monad(
   , guardExist
   -- ** Generic helpers
   , require
+  , pagination
   ) where
 
 import Control.Concurrent                   (ThreadId)
 import Control.Monad.Except                 (ExceptT, MonadError, runExceptT)
 import Control.Monad.State.Strict as S
+import Data.Maybe
 import Data.Monoid                          ((<>))
 import Database.Persist.Sql    
 import Servant                              
+import Servant.API.Auth.Token.Pagination
 import Servant.API.REST.Derive
 import Servant.API.REST.Derive.Server
 import Servant.Server.Auth.Token 
@@ -169,3 +172,14 @@ modifySessions f = modify' (\ st -> st { appSessions = f $ appSessions st })
 -- | Retrieve application logger from current state
 getLogger :: App LoggerSet
 getLogger = gets appLogger
+
+-- | Helper that implements pagination logic
+pagination :: Maybe Page -- ^ Parameter of page
+  -> Maybe PageSize -- ^ Parameter of page size
+  -> (Page -> PageSize -> App a) -- ^ Handler
+  -> App a
+pagination pageParam pageSizeParam f = do 
+  ps <- getsConfig configPageSize
+  let page = fromMaybe 0 pageParam 
+      pageSize = fromMaybe ps pageSizeParam
+  f page pageSize 

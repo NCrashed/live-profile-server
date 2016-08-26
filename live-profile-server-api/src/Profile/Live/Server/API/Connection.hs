@@ -19,12 +19,18 @@ module Profile.Live.Server.API.Connection(
   ) where 
 
 import Control.Lens
+import Data.Monoid
 import Data.Proxy
-import Data.Swagger 
+import Data.Swagger
+import Data.Swagger.Internal.Schema
 import Data.Text 
 import Data.Time 
+import Data.Typeable
 import Data.Vinyl.Derived
 import Servant.API
+import Servant.API.Auth.Token
+import Servant.API.Auth.Token.Internal.Schema 
+import Servant.API.Auth.Token.Pagination
 import Servant.API.REST.Derive
 import Servant.API.REST.Derive.Named
 import Servant.API.REST.Derive.TH
@@ -45,8 +51,24 @@ instance Named Connection where
 $(declareVinylPatch ''Connection)
 
 -- | API about connections to remote Haskell applications that we profile
-type ConnectionAPI = "connection" 
-  :> RESTFull Connection "connection"
+type ConnectionAPI = "connection" :> (
+      RESTFull Connection "connection"
+  :<|> "list" 
+    :> PageParam
+    :> PageSizeParam
+    :> TokenHeader' '["read-connection"]
+    :> Get '[JSON] (PagedList (Id Connection) Connection) 
+  )
+
+-- Needed due bug with `Can't find interface-file declaration for variable $tc'(,)`
+instance {-# OVERLAPPING #-} ToSchema (PagedList (Id Connection) Connection) where 
+  declareNamedSchema p = do
+    s <- genericDeclareNamedSchema (schemaOptionsDropPrefix "pagedList") p
+    return $ rename nm s
+    where 
+    nm = Just $ "PagedList " <> iname <> " " <> aname
+    iname = "Id Connection"
+    aname = "Connection"
 
 -- | Helper to carry 'ConnectionAPI' type around
 connectionAPI :: Proxy ConnectionAPI
