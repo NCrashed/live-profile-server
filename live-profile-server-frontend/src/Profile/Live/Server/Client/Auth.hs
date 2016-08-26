@@ -17,6 +17,7 @@ module Profile.Live.Server.Client.Auth(
   , authGroupPatch
   , authGroupDelete
   , authGroups
+  , SimpleToken
   ) where 
 
 import Control.Monad.Trans.Either 

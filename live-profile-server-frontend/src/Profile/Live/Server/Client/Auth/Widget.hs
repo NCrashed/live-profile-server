@@ -1,6 +1,7 @@
 {-# LANGUAGE RecursiveDo #-}
 module Profile.Live.Server.Client.Auth.Widget(
     authWidget
+  , SimpleToken
   ) where 
 
 import Control.Lens 

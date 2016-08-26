@@ -22,14 +22,21 @@ import Profile.Live.Server.Client.Bined
 
 main :: IO ()
 main = mainWidget $ do
-  tok <- authWidget 30
-  connectionsWidget
+  mtok <- authWidget 30
+  dyn =<< mapDyn withTokenApp mtok
+  return ()
+  where 
+  withTokenApp :: MonadWidget t m => Maybe SimpleToken -> m ()
+  withTokenApp = maybe notAuthWidget connectionsWidget
 
 showt :: Show a => a -> Text 
 showt = T.pack . show
 
-connectionsWidget :: forall t m . MonadWidget t m => m ()
-connectionsWidget = do 
+notAuthWidget :: MonadWidget t m => m ()
+notAuthWidget = el "h1" $ text "Authorise please" 
+
+connectionsWidget :: forall t m . MonadWidget t m => SimpleToken -> m ()
+connectionsWidget _ = do 
   mapM_ renderConnection cons
   where 
   cons :: [Connection]
