@@ -49,7 +49,7 @@ connDelete :: Id Connection
   :<|> connPatch
   :<|> connDelete
     ) = client connectionAPI host
-  where host = Just $ BaseUrl Http "localhost" 3000
+  where host = Nothing -- Just $ BaseUrl Http "localhost" 3000
 
 instance ToJSVal ConnectionPatch where 
   toJSVal = toJSVal_aeson
