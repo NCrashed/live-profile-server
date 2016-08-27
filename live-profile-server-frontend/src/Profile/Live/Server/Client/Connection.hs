@@ -1,4 +1,15 @@
+{-|
+Module      : Profile.Live.Server.Client.Connection
+Description : Bindings to server API and widgets for connections
+Copyright   : (c) Anton Gushcha, 2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : Portable
+-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecursiveDo #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Profile.Live.Server.Client.Connection(
   -- * Server API
     connGet
@@ -11,10 +22,13 @@ module Profile.Live.Server.Client.Connection(
   , connectionsWidget
   ) where 
 
+import Control.Lens
 import Control.Monad.Trans.Either
 import Data.Aeson.Unit 
 import Data.Aeson.WithField 
 import Data.Monoid 
+import Data.Proxy
+import Data.Time 
 import Data.Vinyl
 import GHCJS.Marshal
 import Reflex as R
@@ -31,8 +45,10 @@ import Profile.Live.Server.API.Connection
 import Profile.Live.Server.Client.Async
 import Profile.Live.Server.Client.Bootstrap.Button
 import Profile.Live.Server.Client.Pagination
+import Profile.Live.Server.Client.Session
+import Profile.Live.Server.Client.Router
 
-type ConnPerm s = MToken '[PermConcat (PermLabel s) (PermLabel "connection")]
+type ConnPerm s = MToken '[ 'PermConcat ('PermLabel s) ('PermLabel "connection")]
 
 connGet :: Id Connection
   -> ConnPerm "read-"
@@ -74,34 +90,35 @@ instance ToJSVal ConnectionPatch where
 
 -- | Render list of connections with pagination
 connectionsWidget :: forall t m . MonadWidget t m => SimpleToken -> m ()
-connectionsWidget token = do 
-  reqE <- fmap (const 0) <$> getPostBuild
-  dataE <- requestConns reqE
-  let widgetE = renderList renderConnection <$> dataE
-  widgetHold (pure ()) widgetE
-  return ()
-  where 
+connectionsWidget token = route renderConnections
+  where
+  renderConnections :: m (Route t m)
+  renderConnections = do 
+    reqE <- fmap (const 0) <$> getPostBuild
+    dataE <- requestConns reqE
+    let widgetE = renderList renderConnection <$> dataE
+    sessionEvent <- widgetHold (pure never) widgetE
+    return $ Route $ sessionsWidget token <$> switchPromptlyDyn sessionEvent 
 
-  renderConnection :: WithId (Id Connection) Connection -> m ()
-  renderConnection (WithField _ (
-       Field name 
-    :& Field host 
-    :& Field port 
-    :& Field lastUsed
-    :& RNil )) = elClass "div" "panel panel-default" $ do 
-      elClass "div" "panel-body" $ do
-        elAttr "span" [("style", "font-weight: bold;")] $ text $ T.unpack name
-        text $ " (" <> T.unpack host <> ":" <> show port <> ") "
-          <> "Last used: " <> show lastUsed
-        sessions <- blueButton "Sessions"
-        del <- blueButton "Delete"
-        return ()
+  renderConnection :: WithId (Id Connection) Connection -> m (Event t (Id Connection))
+  renderConnection (WithField i conn) = elClass "div" "panel panel-default" $ do 
+    elClass "div" "panel-body" $ do
+      let name = conn ^. rlens (Proxy :: Proxy '("name", T.Text)) . rfield
+          host = conn ^. rlens (Proxy :: Proxy '("host", T.Text)) . rfield
+          port = conn ^. rlens (Proxy :: Proxy '("port", Word)) . rfield
+          lastUsed = conn ^. rlens (Proxy :: Proxy '("lastUsed", Maybe UTCTime)) . rfield
+      elAttr "span" [("style", "font-weight: bold;")] $ text $ T.unpack name
+      text $ " (" <> T.unpack host <> ":" <> show port <> ") "
+        <> "Last used: " <> show lastUsed
+      sessions <- fmap (const i) <$> blueButton "Sessions"
+      del <- blueButton "Delete"
+      return sessions
 
   requestConns :: Event t Page -> m (Event t (PagedList (Id Connection) Connection))
   requestConns e = do 
     let mkReq p = connList (Just p) Nothing (Just (Token token))
     reqEv <- asyncAjax mkReq e
-    widgetHold (pure ()) $ ffor reqEv $ \resp -> case resp of 
+    _ <- widgetHold (pure ()) $ ffor reqEv $ \resp -> case resp of 
       Left er -> danger er 
       Right _ -> return ()    
     let itemsE = either (const $ PagedList [] 0) id <$> reqEv

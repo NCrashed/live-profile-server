@@ -30,12 +30,12 @@ import qualified Data.Vector as V
 
 import Profile.Live.Server.Client.Async 
 
-renderList :: MonadWidget t m => (WithId (Id a) a -> m ()) -> PagedList (Id a) a -> m ()
+renderList :: MonadWidget t m => (WithId (Id a) a -> m (Event t b)) -> PagedList (Id a) a -> m (Event t b)
 renderList render plist = do 
   rec pageDE <- widgetHold (pager 0) $ fmap pager pageE 
       let pageE = switchPromptlyDyn pageDE
-  mapM_ render $ pagedListItems plist 
-  return ()
+  es <- mapM render $ pagedListItems plist 
+  return $ leftmost es
   where 
     pager curw = renderPager curw $ pagedListPages plist
 

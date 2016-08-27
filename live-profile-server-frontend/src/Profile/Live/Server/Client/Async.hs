@@ -11,6 +11,7 @@ import Data.Aeson.Unit
 import Data.Aeson.WithField
 import GHC.TypeLits 
 import Servant.API.Auth.Token.Pagination
+import Servant.API.REST.Derive
 import Servant.Client 
 
 import GHCJS.Marshal
@@ -47,6 +48,12 @@ asyncAjax action e = performEventAsync $ ffor e $ \a cb -> do
   _ <- liftIO $ forkIO $ putMVar resp =<< runEitherT (action a)
   _ <- liftIO $ forkIO $ cb . first printAjaxErr =<< takeMVar resp
   return ()
+
+instance ToJSVal (Id a) where 
+  toJSVal = toJSVal_aeson
+
+instance FromJSVal (Id a) where 
+  fromJSVal = fromJSVal_aeson
 
 instance ToJSON (FieldRec fields) => ToJSVal (FieldRec fields) where 
   toJSVal = toJSVal_aeson
