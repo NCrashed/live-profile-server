@@ -43,21 +43,64 @@ notAuthWidget = el "h1" $ text "Authorise please"
 
 connectionsWidget :: forall t m . MonadWidget t m => SimpleToken -> m ()
 connectionsWidget token = do 
-  mapM_ renderConnection cons
+  reqE <- fmap (const 0) <$> getPostBuild
+  dataE <- requestConns reqE
+  let widgetE = renderList <$> dataE
+  widgetHold (pure ()) widgetE
+  return ()
   where 
-  cons :: [Connection]
-  cons = [
-      Field "Test con1" :& Field "localhost" :& Field 8242 :& Field Nothing :& RNil
-    , Field "Test con2" :& Field "localhost" :& Field 8244 :& Field Nothing :& RNil
-    ]
 
-  renderConnection :: Connection -> m ()
-  renderConnection (
+  renderList :: PagedList (Id Connection) Connection -> m ()
+  renderList plist = do 
+    rec pageDE <- widgetHold (pager 0) $ fmap pager pageE 
+        let pageE = switchPromptlyDyn pageDE
+    mapM_ renderConnection $ pagedListItems plist 
+    return ()
+    where 
+      pager curw = renderPager curw $ pagedListPages plist
+
+  renderPager :: Word -> Word -> m (Event t Page)
+  renderPager curw w = do 
+    elAttr "nav" [("aria-label", "Items navigation")] $ elClass "ul" "pagination" $ do 
+      prevE <- prevButton
+      pagesE <- mapM pageButton [0 .. w-1]
+      nextE <- nextButton
+      return $ leftmost $ [prevE, nextE] ++ pagesE
+    where
+    prevButton :: m (Event t Page)
+    prevButton 
+      | curw == 0 = do
+        elClass "li" "disabled" $ el "a" $ text "«"
+        return never
+      | otherwise = el "li" $ do 
+        (el, _) <- elAttr' "a" [("href", "#")] $ text "«"
+        return $ const (curw-1) <$> domEvent Click el
+
+    nextButton :: m (Event t Page)
+    nextButton 
+      | curw == w-1 = do 
+        elClass "li" "disabled" $ el "a" $ text "»"
+        return never
+      | otherwise = el "li" $ do 
+        (el, _) <- elAttr' "a" [("href", "#")] $ text "»"
+        return $ const (curw+1) <$> domEvent Click el
+
+    pageButton :: Page -> m (Event t Page)
+    pageButton i 
+      | i == curw = do
+        elClass "li" "active" $ el "a" $ text (show $ i+1)
+        return never
+      | otherwise = el "li" $ do 
+        (el, _) <- elAttr' "a" [("href", "#")] $ text (show $ i+1)
+        return $ const i <$> domEvent Click el
+
+  renderConnection :: WithId (Id Connection) Connection -> m ()
+  renderConnection (WithField _ (
        Field name 
     :& Field host 
     :& Field port 
     :& Field lastUsed
-    :& RNil ) = elClass "div" "panel panel-default" $ do 
+    :& RNil )) = elClass "div" "panel panel-default" $ do 
       elClass "div" "panel-body" $ do
         elAttr "span" [("style", "font-weight: bold;")] $ text $ T.unpack name
         text $ " (" <> T.unpack host <> ":" <> show port <> ") "
@@ -66,14 +109,14 @@ connectionsWidget token = do
         del <- blueButton "Delete"
         return ()
 
-  requestConns :: Event t (a, b) -> m (Event t [WithId (Id Connection) Connection])
+  requestConns :: Event t Page -> m (Event t (PagedList (Id Connection) Connection))
   requestConns e = do 
-    let mkSignin (login, pass) = connList (Just 0) Nothing (Just (Token token))
-    reqEv <- asyncAjax mkSignin e
+    let mkReq p = connList (Just p) Nothing (Just (Token token))
+    reqEv <- asyncAjax mkReq e
     widgetHold (pure ()) $ ffor reqEv $ \resp -> case resp of 
       Left er -> danger er 
       Right _ -> return ()    
-    let itemsE = either (const []) pagedListItems <$> reqEv
+    let itemsE = either (const $ PagedList [] 0) id <$> reqEv
     return itemsE 
 
   danger = elClass "div" "alert alert-danger" . text 
