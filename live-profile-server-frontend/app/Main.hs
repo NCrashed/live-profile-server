@@ -61,12 +61,15 @@ connectionsWidget token = do
 
   renderPager :: Word -> Word -> m (Event t Page)
   renderPager curw w = do 
-    elAttr "nav" [("aria-label", "Items navigation")] $ elClass "ul" "pagination" $ do 
+    elAttr "nav" navAttrs $ elAttr "div" pagAttrs $ elClass "ul" "pagination" $ do 
       prevE <- prevButton
       pagesE <- mapM pageButton [0 .. w-1]
       nextE <- nextButton
       return $ leftmost $ [prevE, nextE] ++ pagesE
     where
+    navAttrs = [("aria-label", "Items navigation"), ("style", "text-align: center;")]
+    pagAttrs = [("style", "display: inline-block")]
+
     prevButton :: m (Event t Page)
     prevButton 
       | curw == 0 = do
