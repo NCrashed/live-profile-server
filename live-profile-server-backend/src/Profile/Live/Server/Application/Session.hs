@@ -18,6 +18,8 @@ import Control.Lens
 import Control.Monad 
 import Control.Monad.IO.Class 
 import Data.Aeson.Unit
+import Data.Aeson.WithField
+import Data.Maybe 
 import Data.Monoid
 import Data.Proxy 
 import Data.Text (Text)
@@ -28,10 +30,13 @@ import Database.Persist
 import Database.Persist.Sql (SqlPersistT)
 import GHC.RTS.Events
 import Servant.API 
+import Servant.API.Auth.Token
+import Servant.API.Auth.Token.Pagination
 import Servant.API.REST.Derive
 import Servant.API.REST.Derive.Server
 import Servant.API.REST.Derive.Server.Vinyl
-import Servant.Server 
+import Servant.Server
+import Servant.Server.Auth.Token 
 import System.Socket 
 import System.Socket.Family.Inet6
 import System.Socket.Protocol.TCP
@@ -52,6 +57,7 @@ sessionServer :: ServerT SessionAPI App
 sessionServer = restServer (Proxy :: Proxy '[ 'GET ]) 
   (Proxy :: Proxy Session) (Proxy :: Proxy "session")
   (Proxy :: Proxy App)
+  :<|> listSessions
   :<|> connectMethod
   :<|> disconnectMethod
 
@@ -169,3 +175,26 @@ closeSession i = do
     Just (_, term) -> do 
       terminateAndWait term 
       modifySessions $ H.delete i
+
+-- | Enlisint existing sessions
+listSessions :: Maybe Page 
+  -> Maybe PageSize
+  -> Maybe (Id Connection)
+  -> MToken' '["read-session"]
+  -> App (PagedList (Id Session) Session)
+listSessions mp msize mcon token = do 
+  guardAuthToken token 
+  pagination mp msize $ \page size -> do 
+    let connField = DBField (Proxy :: Proxy '("connection", Id Connection)) :: EntityField Session (Id Connection)
+    let filters = catMaybes [
+            (connField ==.) <$> mcon
+          ]
+    (es, total) <- runDB $ (,)
+      <$> (do
+        (is :: [Key Session]) <- selectKeysList filters [OffsetBy (fromIntegral $ page * size), LimitTo (fromIntegral size)]
+        forM is $ (\i -> fmap (WithField i) <$> readResource i) . unVKey)
+      <*> count filters
+    return PagedList {
+        pagedListItems = catMaybes es
+      , pagedListPages = ceiling $ (fromIntegral total :: Double) / fromIntegral size
+      }

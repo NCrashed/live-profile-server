@@ -10,6 +10,7 @@ Portability : Portable
 -}
 module Profile.Live.Server.API.Session(
     SessionAPI
+  , sessionAPI
   -- * Data types
   , Session
   , SessionPatch(..)
@@ -17,14 +18,19 @@ module Profile.Live.Server.API.Session(
   , sessionOperations
   ) where 
 
+--import Data.Text 
 import Control.Lens
 import Data.Aeson.Unit
+import Data.Monoid
 import Data.Proxy
-import Data.Swagger 
---import Data.Text 
+import Data.Swagger
+import Data.Swagger.Internal.Schema
 import Data.Time 
 import Data.Vinyl.Derived
 import Servant.API
+import Servant.API.Auth.Token 
+import Servant.API.Auth.Token.Internal.Schema 
+import Servant.API.Auth.Token.Pagination
 import Servant.API.REST.Derive
 import Servant.API.REST.Derive.Named
 import Servant.API.REST.Derive.TH
@@ -40,7 +46,7 @@ type Session = FieldRec '[
   , '("end", Maybe UTCTime)
   , '("log", EventLogId)
   ]
-
+  
 instance Named Session where 
   getName _ = "Session"
 
@@ -50,9 +56,29 @@ $(declareVinylPatch ''Session)
 -- | API about sessions to remote Haskell applications that we profile
 type SessionAPI = "session" :> (
        RESTFullWith '[ 'GET] Session "session"
+  :<|> "list" 
+    :> PageParam
+    :> PageSizeParam 
+    :> QueryParam "connection" (Id Connection)
+    :> TokenHeader' '["read-session"]
+    :> Get '[JSON] (PagedList (Id Session) Session) 
   :<|> "connect" :> Capture "connection-id" (Id Connection) :> Post '[JSON] (Id Session)
   :<|> "disconnect" :> Capture "session-id" (Id Session) :> Post '[JSON] Unit
   )
+
+-- Needed due bug with `Can't find interface-file declaration for variable $tc'(,)`
+instance {-# OVERLAPPING #-} ToSchema (PagedList (Id Session) Session) where 
+  declareNamedSchema p = do
+    s <- genericDeclareNamedSchema (schemaOptionsDropPrefix "pagedList") p
+    return $ rename nm s
+    where 
+    nm = Just $ "PagedList " <> iname <> " " <> aname
+    iname = "Id Session"
+    aname = "Session"
+
+-- | Proxy to pass around 'SessionAPI'
+sessionAPI :: Proxy SessionAPI 
+sessionAPI = Proxy 
 
 -- | Select only operations of the Session API
 sessionOperations :: Traversal' Swagger Operation
