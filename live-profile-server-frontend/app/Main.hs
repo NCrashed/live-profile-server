@@ -25,6 +25,7 @@ import Profile.Live.Server.Client.Async
 import Profile.Live.Server.Client.Auth.Widget
 import Profile.Live.Server.Client.Bined
 import Profile.Live.Server.Client.Connection
+import Profile.Live.Server.Client.Pagination
 
 main :: IO ()
 main = mainWidget $ do
@@ -45,57 +46,10 @@ connectionsWidget :: forall t m . MonadWidget t m => SimpleToken -> m ()
 connectionsWidget token = do 
   reqE <- fmap (const 0) <$> getPostBuild
   dataE <- requestConns reqE
-  let widgetE = renderList <$> dataE
+  let widgetE = renderList renderConnection <$> dataE
   widgetHold (pure ()) widgetE
   return ()
   where 
-
-  renderList :: PagedList (Id Connection) Connection -> m ()
-  renderList plist = do 
-    rec pageDE <- widgetHold (pager 0) $ fmap pager pageE 
-        let pageE = switchPromptlyDyn pageDE
-    mapM_ renderConnection $ pagedListItems plist 
-    return ()
-    where 
-      pager curw = renderPager curw $ pagedListPages plist
-
-  renderPager :: Word -> Word -> m (Event t Page)
-  renderPager curw w = do 
-    elAttr "nav" navAttrs $ elAttr "div" pagAttrs $ elClass "ul" "pagination" $ do 
-      prevE <- prevButton
-      pagesE <- mapM pageButton [0 .. w-1]
-      nextE <- nextButton
-      return $ leftmost $ [prevE, nextE] ++ pagesE
-    where
-    navAttrs = [("aria-label", "Items navigation"), ("style", "text-align: center;")]
-    pagAttrs = [("style", "display: inline-block")]
-
-    prevButton :: m (Event t Page)
-    prevButton 
-      | curw == 0 = do
-        elClass "li" "disabled" $ el "a" $ text "«"
-        return never
-      | otherwise = el "li" $ do 
-        (el, _) <- elAttr' "a" [("href", "#")] $ text "«"
-        return $ const (curw-1) <$> domEvent Click el
-
-    nextButton :: m (Event t Page)
-    nextButton 
-      | curw == w-1 = do 
-        elClass "li" "disabled" $ el "a" $ text "»"
-        return never
-      | otherwise = el "li" $ do 
-        (el, _) <- elAttr' "a" [("href", "#")] $ text "»"
-        return $ const (curw+1) <$> domEvent Click el
-
-    pageButton :: Page -> m (Event t Page)
-    pageButton i 
-      | i == curw = do
-        elClass "li" "active" $ el "a" $ text (show $ i+1)
-        return never
-      | otherwise = el "li" $ do 
-        (el, _) <- elAttr' "a" [("href", "#")] $ text (show $ i+1)
-        return $ const i <$> domEvent Click el
 
   renderConnection :: WithId (Id Connection) Connection -> m ()
   renderConnection (WithField _ (

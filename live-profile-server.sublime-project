@@ -22,6 +22,11 @@
 			"working_dir": "${project_path}/live-profile-server-frontend"
 		},
 		{
+			"name": "GHCJS pedantic",
+			"shell_cmd": "./compile_pedantic.sh && firefox http://localhost:3000/index.html",
+			"working_dir": "${project_path}/live-profile-server-frontend"
+		},
+		{
 			"name": "Debug app",
 			"shell_cmd": "stack install --pedantic --compiler=ghc-8.1",
 			"working_dir": "${project_path}/live-profile-test-app"

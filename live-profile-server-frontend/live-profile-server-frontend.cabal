@@ -26,6 +26,7 @@ library
     Profile.Live.Server.Client.Bined
     Profile.Live.Server.Client.Bootstrap.Modal
     Profile.Live.Server.Client.Connection
+    Profile.Live.Server.Client.Pagination
   build-depends:       
       base                  >= 4.7      && < 5
     , aeson                 >= 0.9      && < 0.12
@@ -88,7 +89,7 @@ executable fitclubs-frontend-output
     , live-profile-server-api        >= 0.1      && < 0.2
     , servant-rest-derive            >= 0.1      && < 0.2
     , servant-auth-token-api         >= 0.2      && < 0.3
-    
+
   default-language:    Haskell2010
   default-extensions:
     RecordWildCards
