@@ -28,11 +28,7 @@ import Text.Printf
 import qualified Data.Text as T 
 import qualified Data.Vector as V
 
-import Profile.Live.Server.API.Connection 
 import Profile.Live.Server.Client.Async 
-import Profile.Live.Server.Client.Auth.Widget
-import Profile.Live.Server.Client.Bined
-import Profile.Live.Server.Client.Connection
 
 renderList :: MonadWidget t m => (WithId (Id a) a -> m ()) -> PagedList (Id a) a -> m ()
 renderList render plist = do 

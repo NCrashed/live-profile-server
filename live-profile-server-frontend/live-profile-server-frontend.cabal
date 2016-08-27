@@ -24,6 +24,7 @@ library
     Profile.Live.Server.Client.Auth
     Profile.Live.Server.Client.Auth.Widget
     Profile.Live.Server.Client.Bined
+    Profile.Live.Server.Client.Bootstrap.Button
     Profile.Live.Server.Client.Bootstrap.Modal
     Profile.Live.Server.Client.Connection
     Profile.Live.Server.Client.Pagination
