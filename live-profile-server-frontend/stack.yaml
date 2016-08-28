@@ -39,6 +39,9 @@ packages:
 - location:
     git: https://github.com/ghcjs/ghcjs-ffiqq.git
     commit: b52338c2dcd3b0707bc8aff2e171411614d4aedb
+- location:
+    git: https://github.com/NCrashed/ghc-events.git
+    commit: 5427e8bc4b14328f25e0700d35c0f09bceb56501
 
 extra-deps:
 - aeson-injector-1.0.4.0

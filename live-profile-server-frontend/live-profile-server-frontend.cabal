@@ -41,6 +41,7 @@ library
     , diagrams-lib          >= 1.3      && < 1.4
     , diagrams-reflex       >= 0.1      && < 0.2
     , either                >= 4.4      && < 4.5
+    , ghc-events            >= 0.5      && < 0.6
     , ghcjs-base            >= 0.2      && < 0.3
     , ghcjs-servant-client  >= 1.1.1    && < 1.2
     , lens                  >= 4.13     && < 4.14
