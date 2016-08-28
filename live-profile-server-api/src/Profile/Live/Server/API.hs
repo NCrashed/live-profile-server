@@ -17,7 +17,6 @@ module Profile.Live.Server.API(
   , coreLiveProfileAPI
   -- * Helpers for docs and generation of code
   , generateSwagger
-  , generateJavaScript
   ) where
 
 import Control.Lens 
@@ -25,8 +24,7 @@ import Data.Aeson
 import Data.Proxy 
 import Data.Swagger
 import Servant.API 
-import Servant.API.Auth.Token 
-import Servant.JS
+import Servant.API.Auth.Token
 import Servant.Swagger 
 
 import qualified Data.ByteString.Lazy as BS 
@@ -69,7 +67,3 @@ generateSwagger path = BS.writeFile path . encode $ toSwagger documentedLiveProf
   & applyTagsFor connectionOperations ["Connection" & description ?~ "Connection to profiled app operations"]
   & applyTagsFor sessionOperations ["Session" & description ?~ "Session of a connection to profiled app"]
   & applyTagsFor eventLogOperations ["Event log" & description ?~ "Operations with raw events"]
-
--- | Generate js client of API and store it at specified file
-generateJavaScript :: FilePath -> IO ()
-generateJavaScript = writeJSForAPI documentedLiveProfileAPI vanillaJS

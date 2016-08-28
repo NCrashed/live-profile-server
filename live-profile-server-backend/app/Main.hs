@@ -36,8 +36,7 @@ server Options{..} = do
   
   let pool = appPool astate 
   let strength = authSettingsPasswordsStrength $ configAuth config
-  runSqlPool (doMigrations strength) pool 
-  generateJavaScript $ configStatic config <> "/api.js"
+  runSqlPool (doMigrations strength) pool
   generateSwagger $ configStatic config <> "/swagger.json"
 
   -- santinize actions

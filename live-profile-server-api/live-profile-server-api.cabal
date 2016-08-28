@@ -32,7 +32,6 @@ library
     , lens                    >= 4.13     && < 4.15
     , servant                 >= 0.7      && < 0.8
     , servant-auth-token-api  >= 0.2      && < 0.3
-    , servant-js              >= 0.7      && < 0.8
     , servant-rest-derive     >= 0.1      && < 0.2
     , servant-swagger         >= 1.0      && < 1.2
     , swagger2                >= 2.0      && < 2.2

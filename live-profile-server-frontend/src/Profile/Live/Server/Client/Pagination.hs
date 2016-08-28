@@ -65,10 +65,12 @@ renderPager :: forall t m . MonadWidget t m
   -> m (Event t Page) -- Returns event of next page requested by user
 renderPager maxPages curw w = do 
   elAttr "nav" navAttrs $ elAttr "div" pagAttrs $ elClass "ul" "pagination" $ do 
+    begE <- beginButton
     prevE <- prevButton
     pagesE <- mapM pageButton pagesRange 
     nextE <- nextButton
-    return $ leftmost $ [prevE, nextE] ++ pagesE
+    endE <- endButton
+    return $ leftmost $ [begE, endE, prevE, nextE] ++ pagesE
   where
   navAttrs = [("aria-label", "Items navigation"), ("style", "text-align: center;")]
   pagAttrs = [("style", "display: inline-block")]
@@ -79,6 +81,15 @@ renderPager maxPages curw w = do
       mib, mab :: Word -> Int 
       mib n = fromIntegral curw - fromIntegral n
       mab n = fromIntegral curw + fromIntegral n
+
+  beginButton :: m (Event t Page)
+  beginButton 
+    | curw == 0 = do
+      elClass "li" "disabled" $ el "a" $ text "««"
+      return never
+    | otherwise = el "li" $ do 
+      (e, _) <- elAttr' "a" [("href", "#")] $ text "««"
+      return $ const 0 <$> domEvent Click e
 
   prevButton :: m (Event t Page)
   prevButton 
@@ -97,6 +108,15 @@ renderPager maxPages curw w = do
     | otherwise = el "li" $ do 
       (e, _) <- elAttr' "a" [("href", "#")] $ text "»"
       return $ const (curw+1) <$> domEvent Click e
+
+  endButton :: m (Event t Page)
+  endButton 
+    | curw == w-1 = do 
+      elClass "li" "disabled" $ el "a" $ text "»»"
+      return never
+    | otherwise = el "li" $ do 
+      (e, _) <- elAttr' "a" [("href", "#")] $ text "»»"
+      return $ const (w-1) <$> domEvent Click e
 
   pageButton :: Page -> m (Event t Page)
   pageButton i 
