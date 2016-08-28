@@ -11,6 +11,10 @@ import Reflex.Dom
 -- returned routes of widgets
 newtype Route t m = Route { unRoute :: Event t (m (Route t m)) }
 
+instance Reflex t => Monoid (Route t m) where 
+  mempty = Route never 
+  (Route e1) `mappend` (Route e2) = Route $ leftmost [e1, e2]
+
 -- | Run widget that can replace itself with new widget constructed
 -- internally in the original widget.
 route :: forall t m . MonadWidget t m => m (Route t m) -> m ()

@@ -98,7 +98,8 @@ connectionsWidget token = route renderConnections
     dataE <- requestConns reqE
     let widgetE = renderList renderConnection <$> dataE
     sessionEvent <- widgetHold (pure never) widgetE
-    return $ Route $ sessionsWidget token <$> switchPromptlyDyn sessionEvent 
+    let thisW = renderConnections
+    return $ Route $ sessionsWidget token (Just thisW) <$> switchPromptlyDyn sessionEvent 
 
   renderConnection :: WithId (Id Connection) Connection -> m (Event t (Id Connection))
   renderConnection (WithField i conn) = elClass "div" "panel panel-default" $ do 
