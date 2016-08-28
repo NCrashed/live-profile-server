@@ -80,7 +80,7 @@ sessionsWidget token backW conn = do
 
   --connectE <- fmap (const 0) <$> blueButton "Connect"
 
-  viewE <- renderList renderSession requestSessions
+  viewE <- renderList (Just 10) renderSession requestSessions
 
   let thisW = sessionsWidget token backW conn
   let viewR = Route $ eventLogWidget token (Just thisW) <$> viewE

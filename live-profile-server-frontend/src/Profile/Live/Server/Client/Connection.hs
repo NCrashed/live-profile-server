@@ -94,7 +94,7 @@ connectionsWidget token = route renderConnections
   where
   renderConnections :: m (Route t m)
   renderConnections = do 
-    sessionEvent <- renderList renderConnection requestConns 
+    sessionEvent <- renderList (Just 10) renderConnection requestConns 
     let thisW = renderConnections
     return $ Route $ sessionsWidget token (Just thisW) <$> sessionEvent 
 

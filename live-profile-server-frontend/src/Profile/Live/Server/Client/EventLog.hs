@@ -18,6 +18,7 @@ import Profile.Live.Server.API.EventLog
 import Profile.Live.Server.Client.Async
 import Profile.Live.Server.Client.Bootstrap.Button 
 import Profile.Live.Server.Client.Router 
+import Profile.Live.Server.Client.Pagination 
 
 -- | Getting list of events
 eventsList :: EventLogId 
@@ -38,15 +39,17 @@ eventLogWidget :: forall t m . MonadWidget t m
 eventLogWidget tok backW eid = do 
   backE <- blueButton "Back"
 
-  reqE <- fmap (const 0) <$> getPostBuild
-  eventsE <- simpleRequest reqE (\p -> eventsList eid (Just p) Nothing (Just (Token tok)))
-  _ <- widgetHold emptyWell (renderEvents <$> eventsE)
+  _ <- renderPage (Just 10) renderEvents requestEvents
 
   return $ maybe (Route never) (\w -> Route $ const w <$> backE) backW
   where 
-  emptyWell :: m ()
-  emptyWell = elClass "div" "well" $ text "Loading ..."
 
-  renderEvents :: PagedList (Id E.Event) (E.Event) -> m ()
-  renderEvents (PagedList es _) = elClass "div" "well" $ do  
+  renderEvents :: Page -> PagedList (Id E.Event) (E.Event) -> m (Event t a)
+  renderEvents _ (PagedList es _) = elClass "div" "well" $ do  
     forM_ es $ \(WithField _ e) -> el "p" $ text (show e)
+    return never
+
+  requestEvents :: Event t Page -> m (Event t (Page, PagedList (Id E.Event) E.Event))
+  requestEvents ep = simpleRequest ep (\p -> (,)
+    <$> pure p
+    <*> eventsList eid (Just p) Nothing (Just (Token tok)))
