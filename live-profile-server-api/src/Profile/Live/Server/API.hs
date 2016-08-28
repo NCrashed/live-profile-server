@@ -32,6 +32,7 @@ import Servant.Swagger
 import qualified Data.ByteString.Lazy as BS 
 
 import Profile.Live.Server.API.Connection 
+import Profile.Live.Server.API.EventLog 
 import Profile.Live.Server.API.Session 
 
 -- | The live profile server consists of documented API and static file serving 
@@ -42,6 +43,7 @@ type DocumentedLiveProfileAPI = AuthAPI :<|> CoreLiveProfileAPI
 type CoreLiveProfileAPI = 
        ConnectionAPI 
   :<|> SessionAPI
+  :<|> EventLogAPI
 
 -- | Helper to pass around 'LiveProfileAPI'
 liveProfileAPI :: Proxy LiveProfileAPI
@@ -66,6 +68,7 @@ generateSwagger path = BS.writeFile path . encode $ toSwagger documentedLiveProf
   & applyTagsFor authOperations ["Authorisation" & description ?~ "Authorisation operations"]
   & applyTagsFor connectionOperations ["Connection" & description ?~ "Connection to profiled app operations"]
   & applyTagsFor sessionOperations ["Session" & description ?~ "Session of a connection to profiled app"]
+  & applyTagsFor eventLogOperations ["Event log" & description ?~ "Operations with raw events"]
 
 -- | Generate js client of API and store it at specified file
 generateJavaScript :: FilePath -> IO ()

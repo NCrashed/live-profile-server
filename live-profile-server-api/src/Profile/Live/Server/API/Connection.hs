@@ -24,8 +24,7 @@ import Data.Proxy
 import Data.Swagger
 import Data.Swagger.Internal.Schema
 import Data.Text 
-import Data.Time 
-import Data.Typeable
+import Data.Time
 import Data.Vinyl.Derived
 import Servant.API
 import Servant.API.Auth.Token

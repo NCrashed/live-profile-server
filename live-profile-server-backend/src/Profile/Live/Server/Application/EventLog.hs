@@ -12,14 +12,29 @@ module Profile.Live.Server.Application.EventLog(
   , addEventLogType
   , addEventLogEvent
   , addEventLogState
+  , eventLogServer
   ) where 
 
 import Control.Monad 
+import Data.Aeson.WithField
+import Data.Maybe 
 import Database.Persist.Sql 
 import GHC.RTS.Events
+import Servant.API.Auth.Token
+import Servant.API.Auth.Token.Pagination
+import Servant.API.REST.Derive
+import Servant.Server 
+import Servant.Server.Auth.Token
 
 import Profile.Live.Protocol.State
+import Profile.Live.Server.API.EventLog
 import Profile.Live.Server.Events.Model
+import Profile.Live.Server.Monad 
+import Profile.Live.Server.Utils
+
+-- | Implementation of eventl log sub API
+eventLogServer :: ServerT EventLogAPI App 
+eventLogServer = listEvents
 
 -- | Insert empty eventlog
 startEventLog :: SqlPersistT IO EventLogImplId
@@ -47,3 +62,31 @@ addEventLogState lid s = do
   mapM_ (void . insert) $ caps si 
   mapM_ (void . insert) $ tasks si
   return si
+
+-- | Getting event from DB
+readEvent :: EventImplId -> SqlPersistT IO (Maybe Event)
+readEvent i = do 
+  mei <- get i
+  return . join $ fromEventImpl <$> mei
+
+-- | Getting events from server with pagination
+listEvents :: EventLogId
+  -> Maybe Page 
+  -> Maybe PageSize
+  -> MToken' '["read-eventlog"]
+  -> App (PagedList (Id Event) Event)
+listEvents ei mp msize token = do 
+  guardAuthToken token 
+  pagination mp msize $ \page size -> do 
+    let filters = [
+            EventImplEventLog ==. toKey ei 
+          ]
+    (es, total) <- runDB $ (,)
+      <$> (do
+        (is :: [Key EventImpl]) <- selectKeysList filters [OffsetBy (fromIntegral $ page * size), LimitTo (fromIntegral size)]
+        forM is $ (\i -> fmap (WithField (Id $ fromKey i)) <$> readEvent i))
+      <*> count filters
+    return PagedList {
+        pagedListItems = catMaybes es
+      , pagedListPages = ceiling $ (fromIntegral total :: Double) / fromIntegral size
+      }

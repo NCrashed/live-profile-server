@@ -24,6 +24,7 @@ import Servant.Server.Auth.Token
 
 import Profile.Live.Server.API
 import Profile.Live.Server.Application.Connection
+import Profile.Live.Server.Application.EventLog
 import Profile.Live.Server.Application.Session
 import Profile.Live.Server.Config 
 import Profile.Live.Server.Monad 
@@ -35,6 +36,7 @@ coreServer app = enter (convertApp app) server
   server = 
          connectionServer
     :<|> sessionServer
+    :<|> eventLogServer
 
 -- | Implementation of documented server
 documentedServer :: AppState -> Server DocumentedLiveProfileAPI
