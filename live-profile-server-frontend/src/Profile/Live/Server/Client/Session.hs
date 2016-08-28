@@ -78,21 +78,18 @@ sessionsWidget :: forall t m . MonadWidget t m
 sessionsWidget token backW conn = do 
   backE <- blueButton "Back"
 
-  connectE <- fmap (const 0) <$> blueButton "Connect"
-  buildE <- fmap (const 0) <$> getPostBuild
-  let reqE = leftmost [buildE, connectE]
-  dataE <- requestSessions reqE
-  let widgetE = renderList renderSession <$> dataE
-  viewE <- widgetHold (pure never) widgetE
+  --connectE <- fmap (const 0) <$> blueButton "Connect"
+
+  viewE <- renderList renderSession requestSessions
 
   let thisW = sessionsWidget token backW conn
-  let viewR = Route $ eventLogWidget token (Just thisW) <$> switchPromptlyDyn viewE
+  let viewR = Route $ eventLogWidget token (Just thisW) <$> viewE
   let backR = Route $ maybe never (\w -> const w <$> backE) backW
   return $ viewR <> backR
   where 
 
-  renderSession :: WithId (Id Session) Session -> m (Event t (Id Session))
-  renderSession (WithField i sess) = elClass "div" "panel panel-default" $ do 
+  renderSession :: WithId (Id Session) Session -> m (Event t EventLogId)
+  renderSession (WithField _ sess) = elClass "div" "panel panel-default" $ do 
     elClass "div" "panel-body" $ do
       let start = sess ^. rlens (Proxy :: Proxy '("start", UTCTime)) . rfield
           end = sess ^. rlens (Proxy :: Proxy '("end", Maybe UTCTime)) . rfield
@@ -104,18 +101,20 @@ sessionsWidget token backW conn = do
         Nothing -> blueButton "Disconnect" 
         Just _ -> return never
 
-      viewE <- fmap (const i) <$> blueButton "View"
+      viewE <- fmap (const logi) <$> blueButton "View"
 
       return viewE
 
-  requestSessions :: Event t Page -> m (Event t (PagedList (Id Session) Session))
+  requestSessions :: Event t Page -> m (Event t (Page, PagedList (Id Session) Session))
   requestSessions e = do 
-    let mkReq p = sessionList (Just p) Nothing (Just conn) (Just (Token token))
+    let mkReq p = (,)
+          <$> pure p 
+          <*> sessionList (Just p) Nothing (Just conn) (Just (Token token))
     reqEv <- asyncAjax mkReq e
     _ <- widgetHold (pure ()) $ ffor reqEv $ \resp -> case resp of 
       Left er -> danger er 
       Right _ -> return ()    
-    let itemsE = either (const $ PagedList [] 0) id <$> reqEv
+    let itemsE = either (const $ (0, PagedList [] 0)) id <$> reqEv
     return itemsE 
 
   danger = elClass "div" "alert alert-danger" . text 

@@ -94,12 +94,9 @@ connectionsWidget token = route renderConnections
   where
   renderConnections :: m (Route t m)
   renderConnections = do 
-    reqE <- fmap (const 0) <$> getPostBuild
-    dataE <- requestConns reqE
-    let widgetE = renderList renderConnection <$> dataE
-    sessionEvent <- widgetHold (pure never) widgetE
+    sessionEvent <- renderList renderConnection requestConns 
     let thisW = renderConnections
-    return $ Route $ sessionsWidget token (Just thisW) <$> switchPromptlyDyn sessionEvent 
+    return $ Route $ sessionsWidget token (Just thisW) <$> sessionEvent 
 
   renderConnection :: WithId (Id Connection) Connection -> m (Event t (Id Connection))
   renderConnection (WithField i conn) = elClass "div" "panel panel-default" $ do 
@@ -115,14 +112,16 @@ connectionsWidget token = route renderConnections
       del <- blueButton "Delete"
       return sessions
 
-  requestConns :: Event t Page -> m (Event t (PagedList (Id Connection) Connection))
+  requestConns :: Event t Page -> m (Event t (Page, PagedList (Id Connection) Connection))
   requestConns e = do 
-    let mkReq p = connList (Just p) Nothing (Just (Token token))
+    let mkReq p = (,)
+          <$> pure p
+          <*> connList (Just p) Nothing (Just (Token token))
     reqEv <- asyncAjax mkReq e
     _ <- widgetHold (pure ()) $ ffor reqEv $ \resp -> case resp of 
       Left er -> danger er 
       Right _ -> return ()    
-    let itemsE = either (const $ PagedList [] 0) id <$> reqEv
+    let itemsE = either (const $ (0, PagedList [] 0)) id <$> reqEv
     return itemsE 
 
   danger = elClass "div" "alert alert-danger" . text 

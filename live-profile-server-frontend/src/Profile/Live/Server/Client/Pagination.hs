@@ -15,30 +15,34 @@ module Profile.Live.Server.Client.Pagination(
   ) where
 
 import Data.Aeson.WithField
-import Data.Monoid 
-import Data.Text (Text)
-import Data.Vinyl
 import Reflex as R
 import Reflex.Dom as R
-import Servant.API.Auth.Token
 import Servant.API.Auth.Token.Pagination
 import Servant.API.REST.Derive
-import Text.Printf
 
-import qualified Data.Text as T 
-import qualified Data.Vector as V
-
-import Profile.Live.Server.Client.Async 
-
-renderList :: MonadWidget t m => (WithId (Id a) a -> m (Event t b)) -> PagedList (Id a) a -> m (Event t b)
-renderList render plist = do 
-  rec pageDE <- widgetHold (pager 0) $ fmap pager pageE 
-      let pageE = switchPromptlyDyn pageDE
-  es <- mapM render $ pagedListItems plist 
-  return $ leftmost es
+renderList :: forall t m a b . MonadWidget t m 
+  => (WithId (Id a) a -> m (Event t b)) -- ^ Renderer of item
+  -> (Event t Page -> m (Event t (Page, PagedList (Id a) a))) -- ^ Getter of pages
+  -> m (Event t b)
+renderList render getPage = do 
+  initE <- fmap (const 0) <$> getPostBuild
+  rec (pageE, es) <- pager $ leftmost [initE, pageE]
+  return es
   where 
-    pager curw = renderPager curw $ pagedListPages plist
+  pager :: Event t Page -> m (Event t Page, Event t b)
+  pager curw = do 
+    edata <- getPage curw
+    dynRes <- widgetHold (pure (never, never)) $ uncurry renderContent <$> edata
+    (pageED, esD) <- splitDyn dynRes
+    return $ (switchPromptlyDyn pageED, switchPromptlyDyn esD)
 
+  renderContent :: Page -> PagedList (Id a) a -> m (Event t Page, Event t b)
+  renderContent curw (PagedList datum w) = do 
+    pageE <- renderPager curw w
+    es <- mapM render datum
+    return (pageE, leftmost es)
+
+    
 renderPager :: forall t m . MonadWidget t m => Page -> Word -> m (Event t Page)
 renderPager curw w = do 
   elAttr "nav" navAttrs $ elAttr "div" pagAttrs $ elClass "ul" "pagination" $ do 
@@ -56,8 +60,8 @@ renderPager curw w = do
       elClass "li" "disabled" $ el "a" $ text "«"
       return never
     | otherwise = el "li" $ do 
-      (el, _) <- elAttr' "a" [("href", "#")] $ text "«"
-      return $ const (curw-1) <$> domEvent Click el
+      (e, _) <- elAttr' "a" [("href", "#")] $ text "«"
+      return $ const (curw-1) <$> domEvent Click e
 
   nextButton :: m (Event t Page)
   nextButton 
@@ -65,8 +69,8 @@ renderPager curw w = do
       elClass "li" "disabled" $ el "a" $ text "»"
       return never
     | otherwise = el "li" $ do 
-      (el, _) <- elAttr' "a" [("href", "#")] $ text "»"
-      return $ const (curw+1) <$> domEvent Click el
+      (e, _) <- elAttr' "a" [("href", "#")] $ text "»"
+      return $ const (curw+1) <$> domEvent Click e
 
   pageButton :: Page -> m (Event t Page)
   pageButton i 
@@ -74,5 +78,5 @@ renderPager curw w = do
       elClass "li" "active" $ el "a" $ text (show $ i+1)
       return never
     | otherwise = el "li" $ do 
-      (el, _) <- elAttr' "a" [("href", "#")] $ text (show $ i+1)
-      return $ const i <$> domEvent Click el
+      (e, _) <- elAttr' "a" [("href", "#")] $ text (show $ i+1)
+      return $ const i <$> domEvent Click e
