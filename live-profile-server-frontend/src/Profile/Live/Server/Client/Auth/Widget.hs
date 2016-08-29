@@ -25,7 +25,7 @@ authWidget touchSecs = mdo
   ev <- getPostBuild
   let cfg = (def :: ModalConfig t) 
         & modalCfgShow .~ leftmost [ev, invalidEvent]
-        & modalCfgTitle .~ "Authorise, please"
+        & modalCfgTitle .~ "Authorise, please (login 'admin', pass 'admin')"
   md <- modal cfg authForm authQuery
 
   -- repetitive touching 
