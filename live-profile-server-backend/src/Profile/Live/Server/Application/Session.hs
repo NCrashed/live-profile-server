@@ -116,15 +116,27 @@ selectUnclosedSessions = do
 -- | Update session end time in DB
 setSessionEndTime :: Id Session -> UTCTime -> SqlPersistT IO ()
 setSessionEndTime i t = do 
-  let endField = DBField (Proxy :: Proxy '("end", Maybe UTCTime)) :: EntityField Session (Maybe UTCTime)
-  update (VKey i) [endField =. Just t]
+  ms <- get (VKey i)
+  case ms of 
+    Nothing -> return ()
+    Just sess -> do 
+      let endField = DBField (Proxy :: Proxy '("end", Maybe UTCTime)) :: EntityField Session (Maybe UTCTime)
+      let mt = sess ^. rlens (Proxy :: Proxy '("end", Maybe UTCTime)) . rfield
+      whenNothing mt $ 
+        update (VKey i) [endField =. Just t]
 
 -- | Update session end time and stop reason in DB
 setSessionEndTimeWithError :: Id Session -> UTCTime -> Text -> SqlPersistT IO ()
 setSessionEndTimeWithError i t er = do 
-  let endField = DBField (Proxy :: Proxy '("end", Maybe UTCTime)) :: EntityField Session (Maybe UTCTime)
-  let errField = DBField (Proxy :: Proxy '("error", Maybe Text)) :: EntityField Session (Maybe Text)
-  update (VKey i) [endField =. Just t, errField =. Just er]
+  ms <- get (VKey i)
+  case ms of 
+    Nothing -> return ()
+    Just sess -> do 
+      let endField = DBField (Proxy :: Proxy '("end", Maybe UTCTime)) :: EntityField Session (Maybe UTCTime)
+      let errField = DBField (Proxy :: Proxy '("error", Maybe Text)) :: EntityField Session (Maybe Text)
+      let merr = sess ^. rlens (Proxy :: Proxy '("error", Maybe Text)) . rfield
+      whenNothing merr $ 
+        update (VKey i) [endField =. Just t, errField =. Just er]
 
 -- | Open connection to remote profile monitor and update internal container
 -- of opened sessions. Also inserts new session to RDBMS.
@@ -198,10 +210,10 @@ closeSession i = do
   case H.lookup i m of 
     Nothing -> return ()
     Just (_, term) -> do 
-      terminateAndWait term 
+      terminate $ fst term -- Don't wait termination
       modifySessions $ H.delete i
-      t <- liftIO getCurrentTime
-      runDB $ setSessionEndTime i t
+  t <- liftIO getCurrentTime
+  runDB $ setSessionEndTime i t
 
 -- | Close running session of profiling and update app state.
 --
@@ -213,10 +225,10 @@ closeSessionWithError i er = do
   case H.lookup i m of 
     Nothing -> return ()
     Just (_, term) -> do 
-      terminateAndWait term 
+      terminate $ fst term -- Don't wait termination
       modifySessions $ H.delete i
-      t <- liftIO getCurrentTime
-      runDB $ setSessionEndTimeWithError i t er
+  t <- liftIO getCurrentTime
+  runDB $ setSessionEndTimeWithError i t er
 
 -- | Enlisint existing sessions
 listSessions :: Maybe Page 

@@ -25,6 +25,7 @@ import Data.Aeson.Unit
 import Data.Aeson.WithField 
 import Data.Monoid 
 import Data.Proxy 
+import Data.Text (Text)
 import Data.Time
 import Data.Vinyl
 import Reflex as R
@@ -144,12 +145,15 @@ sessionsWidget token backW conn = do
       let start = sess ^. rlens (Proxy :: Proxy '("start", UTCTime)) . rfield
           end = sess ^. rlens (Proxy :: Proxy '("end", Maybe UTCTime)) . rfield
           logi = sess ^. rlens (Proxy :: Proxy '("log", EventLogId)) . rfield
-      
+          merr = sess ^. rlens (Proxy :: Proxy '("error", Maybe Text)) . rfield
       el "p" $
         elAttr "span" [("style", "font-weight: bold;")] $ text $ "Start: " <> show start 
       el "p" $ 
         elAttr "span" [("style", "font-weight: bold;")] $ text $ "End: " <> show end
-  
+      whenJust merr $ \err -> el "p" $ 
+        elAttr "span" [("style", "font-weight: bold; color: rgb(234,67,53)")] $ 
+          text $ "Error: " <> show err 
+
       buttonGroup $ do 
         closeE <- case end of 
           Nothing -> fmap (const $ SessionDisconnect sid) <$> blueButton "Disconnect" 

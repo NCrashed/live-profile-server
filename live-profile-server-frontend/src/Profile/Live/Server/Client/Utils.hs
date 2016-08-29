@@ -12,6 +12,7 @@ module Profile.Live.Server.Client.Utils(
     header
   , danger
   , centered
+  , whenJust
   ) where 
 
 import Reflex
@@ -29,3 +30,8 @@ danger = elClass "div" "alert alert-danger" . text
 centered :: MonadWidget t m => m a -> m a 
 centered w = elAttr "div" [("style", "text-align: center;")] $ 
   elAttr "div" [("style", "display: inline-block")] w
+
+-- | Perform action only when value contains 'Just'
+whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
+whenJust Nothing _ = pure ()
+whenJust (Just a) f = f a 
