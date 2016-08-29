@@ -4,6 +4,7 @@ module Profile.Live.Server.Client.Bootstrap.Modal(
     modal
   , simpleModal
   , simpleValidateModal
+  , confirm
   , ModalId
   , Modal(..)
   -- * Modal configuration
@@ -12,12 +13,19 @@ module Profile.Live.Server.Client.Bootstrap.Modal(
   , modalCfgDismiss
   , modalCfgTitle
   , modalCfgShow
+  , modalCfgHideBody
   -- * Simple modal configuration
   , SimpleModalConfig(..)
   , defaultSimpleModalCfg
-  , acceptTitle
-  , cancelTitle
-  , modalCfg
+  , HasAcceptTitle(..)
+  , HasCancelTitle(..)
+  , HasModalCfg(..)
+  -- * Confirm configuration
+  , ConfirmConfig(..)
+  , defaultConfirmConfig
+  , HasTitle(..)
+  , HasAcceptTitle(..)
+  , HasCancelTitle(..)
   -- * Utils
   , modalShowOn
   , modalHideOn
@@ -76,6 +84,7 @@ data ModalConfig t = ModalConfig {
   _modalCfgDismiss :: !Bool -- ^ Use dismiss button
 , _modalCfgTitle :: !String -- ^ Display modal title
 , _modalCfgShow :: Event t () -- ^ When to show the modal
+, _modalCfgHideBody :: !Bool -- ^ Should render full body widget
 }
 
 $(makeLenses ''ModalConfig)
@@ -86,6 +95,7 @@ defaultModalCfg = ModalConfig {
     _modalCfgDismiss = True
   , _modalCfgTitle = "Modal title"
   , _modalCfgShow = never
+  , _modalCfgHideBody = False
   }
 
 instance Reflex t => Default (ModalConfig t) where 
@@ -113,8 +123,11 @@ modal ModalConfig{..} bodyWidget footerWidget = do
     , ("id", i)]) $
       elClass "div" "modal-dialog" $
       elClass "div" "modal-content" $ do
-        closeEv <- elClass "div" "modal-header" modalHeader 
-        a <- elClass "div" "modal-body" bodyWidget 
+        closeEv <- elClass "div" "modal-header" modalHeader
+
+        let renderBody = if _modalCfgHideBody then id else elClass "div" "modal-body"
+        a <- renderBody bodyWidget 
+
         ev <- elClass "div" "modal-footer" $ footerWidget i' a
         return $ Modal {
             modalId = i'
@@ -151,6 +164,25 @@ genId = liftIO $ do
   modifyIORef' globalIdRef (+1)
   return i 
 
+-- | Help to create modal cancel button
+cancelModalBtn :: MonadWidget t m => String -> m (Event t ())
+cancelModalBtn title = do
+  (e, _) <- elAttr' "button" (Map.fromList 
+    [ ("type", "button")
+    , ("class", "btn btn-default")
+    , ("data-dismiss", "modal")
+    ]) $ text title 
+  return $ domEvent Click e
+
+-- | Help to create modal accept button
+acceptModalBtn :: MonadWidget t m => String -> m (Event t ())
+acceptModalBtn title = do 
+  (e, _) <- elAttr' "button" (Map.fromList 
+    [ ("type", "button")
+    , ("class", "btn btn-primary")
+    ]) $ text title 
+  return $ domEvent Click e
+
 -- | Holds prerequisites for modal creation
 data SimpleModalConfig t = SimpleModalConfig {
   _simpleModalConfigAcceptTitle :: !String -- ^ Display for OK button
@@ -158,7 +190,7 @@ data SimpleModalConfig t = SimpleModalConfig {
 , _simpleModalConfigModalCfg :: !(ModalConfig t) -- ^ More general config
 }
 
-$(makeLensesWith camelCaseFields ''SimpleModalConfig)
+$(makeFields ''SimpleModalConfig)
 
 -- | Default values for modal config
 defaultSimpleModalCfg :: Reflex t => SimpleModalConfig t
@@ -181,6 +213,52 @@ simpleModal SimpleModalConfig{..} body = modal _simpleModalConfigModalCfg body f
     cancelEv <- cancelModalBtn _simpleModalConfigCancelTitle
     acceptEv <- acceptModalBtn _simpleModalConfigAcceptTitle
     let acceptEv' = fmap Just $ dyna `tagDyn` acceptEv
+        cancelEv' = fmap (const Nothing) cancelEv
+    modalHideOn i acceptEv'
+    return $ leftmost [cancelEv', acceptEv']
+
+-- | Configuration of confirm modal
+data ConfirmConfig t = ConfirmConfig {
+  _confirmConfigTitle :: !String -- ^ Display modal title
+, _confirmConfigShowEvent :: Event t () -- ^ When to show the modal
+, _confirmConfigAcceptTitle :: !String -- ^ String on OK button
+, _confirmConfigCancelTitle :: !String -- ^ String on Cancel button
+} 
+
+$(makeFields ''ConfirmConfig)
+
+-- | Default configuration for confirm modal
+defaultConfirmConfig :: Reflex t => ConfirmConfig t 
+defaultConfirmConfig = ConfirmConfig {
+    _confirmConfigTitle = "Are you shure?"
+  , _confirmConfigAcceptTitle = "OK"
+  , _confirmConfigCancelTitle = "Cancel"
+  }
+
+instance Reflex t => Default (ConfirmConfig t) where 
+  def = defaultConfirmConfig
+
+-- | Create confirm modal with "OK" and "Cancel" buttons
+--
+-- Passes events through itself only when user clicked "OK"
+confirm :: forall t m a . (Reflex t, MonadWidget t m)
+  => ConfirmConfig t -- Display configuration
+  -> Event t a -- ^ Value we want to ask user about
+  -> m (Event t a) -- ^ Fires only when user accepted the modal
+confirm ConfirmConfig{..} ea = fmapMaybe id . modalValue <$> modal mcfg body footer 
+  where 
+  body = holdDyn Nothing (Just <$> ea)
+  mcfg = ModalConfig {
+      _modalCfgDismiss = True 
+    , _modalCfgTitle = _confirmConfigTitle
+    , _modalCfgShow = const () <$> ea
+    , _modalCfgHideBody = True
+    }
+
+  footer i dyna = do 
+    cancelEv <- cancelModalBtn _confirmConfigAcceptTitle
+    acceptEv <- acceptModalBtn _confirmConfigCancelTitle
+    let acceptEv' = dyna `tagDyn` acceptEv
         cancelEv' = fmap (const Nothing) cancelEv
     modalHideOn i acceptEv'
     return $ leftmost [cancelEv', acceptEv']
@@ -242,25 +320,6 @@ modalHidden i = do
   runWithActions <- askRunWithActions
   postGui <- askPostGui
   newEventWithTrigger $ \tr -> onModalHidden i $ postGui $ runWithActions [tr :=> pure ()]
-
--- | Help to create modal cancel button
-cancelModalBtn :: MonadWidget t m => String -> m (Event t ())
-cancelModalBtn title = do
-  (e, _) <- elAttr' "button" (Map.fromList 
-    [ ("type", "button")
-    , ("class", "btn btn-default")
-    , ("data-dismiss", "modal")
-    ]) $ text title 
-  return $ domEvent Click e
-
--- | Help to create modal accept button
-acceptModalBtn :: MonadWidget t m => String -> m (Event t ())
-acceptModalBtn title = do 
-  (e, _) <- elAttr' "button" (Map.fromList 
-    [ ("type", "button")
-    , ("class", "btn btn-primary")
-    ]) $ text title 
-  return $ domEvent Click e
 
 -- Example of generated modal:
 -- <div class="modal fade" tabindex="-1" role="dialog">

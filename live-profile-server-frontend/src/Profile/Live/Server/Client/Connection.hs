@@ -132,7 +132,7 @@ connectionsWidget token = route renderConnections
 
       (sessions, del) <- buttonGroup $ (,)
         <$> (fmap (const i) <$> blueButton "Sessions")
-        <*> redButton "Delete"
+        <*> (confirm def =<< redButton "Delete")
 
       return sessions
 
