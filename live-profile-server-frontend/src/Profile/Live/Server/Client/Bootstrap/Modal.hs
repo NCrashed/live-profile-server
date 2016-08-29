@@ -24,8 +24,6 @@ module Profile.Live.Server.Client.Bootstrap.Modal(
   , ConfirmConfig(..)
   , defaultConfirmConfig
   , HasTitle(..)
-  , HasAcceptTitle(..)
-  , HasCancelTitle(..)
   -- * Utils
   , modalShowOn
   , modalHideOn
@@ -41,7 +39,6 @@ import Data.Default
 import Data.Dependent.Map
 import Data.IORef 
 import Data.JSString (pack)
-import Data.Unique
 import GHCJS.Foreign.Callback
 import GHCJS.Types
 import Reflex.Dom 
@@ -220,7 +217,6 @@ simpleModal SimpleModalConfig{..} body = modal _simpleModalConfigModalCfg body f
 -- | Configuration of confirm modal
 data ConfirmConfig t = ConfirmConfig {
   _confirmConfigTitle :: !String -- ^ Display modal title
-, _confirmConfigShowEvent :: Event t () -- ^ When to show the modal
 , _confirmConfigAcceptTitle :: !String -- ^ String on OK button
 , _confirmConfigCancelTitle :: !String -- ^ String on Cancel button
 } 
@@ -256,8 +252,8 @@ confirm ConfirmConfig{..} ea = fmapMaybe id . modalValue <$> modal mcfg body foo
     }
 
   footer i dyna = do 
-    cancelEv <- cancelModalBtn _confirmConfigAcceptTitle
-    acceptEv <- acceptModalBtn _confirmConfigCancelTitle
+    cancelEv <- cancelModalBtn _confirmConfigCancelTitle
+    acceptEv <- acceptModalBtn _confirmConfigAcceptTitle
     let acceptEv' = dyna `tagDyn` acceptEv
         cancelEv' = fmap (const Nothing) cancelEv
     modalHideOn i acceptEv'

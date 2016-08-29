@@ -18,8 +18,6 @@ import Profile.Live.Server.Client.Bootstrap.Form
 import Profile.Live.Server.Client.Bootstrap.Modal
 import Profile.Live.Server.Client.Utils 
 
-import qualified Data.Map as Map 
-
 authWidget :: forall t m . MonadWidget t m 
   => Seconds -- ^ Touch token every n seconds
   -> m (Dynamic t (Maybe SimpleToken))

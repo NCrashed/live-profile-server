@@ -93,6 +93,12 @@ connList :: Maybe Page
 instance ToJSVal ConnectionPatch where 
   toJSVal = toJSVal_aeson
 
+-- | Action with particular connection
+data ConnAction = 
+    ConnSessions (Id Connection)
+  | ConnDelete (Id Connection)
+  deriving (Eq, Show)
+
 -- | Render list of connections with pagination
 connectionsWidget :: forall t m . MonadWidget t m => SimpleToken -> m ()
 connectionsWidget token = route renderConnections
@@ -102,9 +108,20 @@ connectionsWidget token = route renderConnections
     elAttr "h1" [("style", "text-align: center;")] $ text "Connections"
     createdE <- centered creationWidget 
 
-    sessionEvent <- renderListReload (Just 10) renderConnection requestConns createdE
-    let thisW = renderConnections
-    return $ Route $ sessionsWidget token (Just thisW) <$> sessionEvent 
+    rec 
+      let reloadE = leftmost [createdE, deletedE]
+      sessionEvent <- renderListReload (Just 10) renderConnection requestConns reloadE
+      let thisW = renderConnections
+
+      let delE =  fforMaybe sessionEvent $ \e -> case e of 
+            ConnDelete i -> Just i 
+            _ -> Nothing  
+      deletedE <- deleteRequest delE
+
+    let sessionsE = fforMaybe sessionEvent $ \e -> case e of 
+          ConnSessions i -> Just i 
+          _ -> Nothing
+    return $ Route $ sessionsWidget token (Just thisW) <$> sessionsE 
 
   creationWidget :: m (Event t (Id Connection))
   creationWidget = do 
@@ -117,7 +134,12 @@ connectionsWidget token = route renderConnections
     OnlyField i <- connPost con (Just (Token token))
     return i 
 
-  renderConnection :: WithId (Id Connection) Connection -> m (Event t (Id Connection))
+  deleteRequest :: Event t (Id Connection) -> m (Event t (Id Connection))
+  deleteRequest e = simpleRequest e $ \con -> do
+    _ <- connDelete con (Just (Token token))
+    return con
+
+  renderConnection :: WithId (Id Connection) Connection -> m (Event t ConnAction)
   renderConnection (WithField i conn) = elClass "div" "panel panel-default" $ do 
     elClass "div" "panel-body" $ do
       let name = conn ^. rlens (Proxy :: Proxy '("name", T.Text)) . rfield
@@ -131,10 +153,10 @@ connectionsWidget token = route renderConnections
           <> "Last used: " <> show lastUsed
 
       (sessions, del) <- buttonGroup $ (,)
-        <$> (fmap (const i) <$> blueButton "Sessions")
-        <*> (confirm def =<< redButton "Delete")
+        <$> (fmap (const $ ConnSessions i) <$> blueButton "Sessions")
+        <*> (confirm def =<< (fmap (const $ ConnDelete i) <$> redButton "Delete"))
 
-      return sessions
+      return $ leftmost [del, sessions]
 
   requestConns :: Event t Page -> m (Event t (Page, PagedList (Id Connection) Connection))
   requestConns e = do 
