@@ -18,6 +18,7 @@ module Profile.Live.Server.Application.EventLog(
   , readEventLogEvents
   , readEventLogEventTypes
   , readEventLogStates
+  , deleteEventLog
   , eventLogServer
   ) where 
 
@@ -171,4 +172,7 @@ downloadEventLog i {-token-} = do
   let hdr = "attachment; filename=\"" <> filename <> "\""
   return $ addHeader hdr $ EventLogFile payload
 
-
+-- | Cascade deletion of all particular eventlog info
+deleteEventLog :: EventLogImplId -- ^ Id of log
+  -> SqlPersistT IO ()
+deleteEventLog = deleteCascade

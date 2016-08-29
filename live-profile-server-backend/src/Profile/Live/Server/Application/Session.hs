@@ -46,6 +46,7 @@ import qualified Data.HashMap.Strict as H
 
 import Profile.Live.Client
 import Profile.Live.Server.API.Connection
+import Profile.Live.Server.API.EventLog
 import Profile.Live.Server.API.Session 
 import Profile.Live.Server.Application.EventLog
 import Profile.Live.Server.Error
@@ -57,9 +58,20 @@ sessionServer :: ServerT SessionAPI App
 sessionServer = restServer (Proxy :: Proxy '[ 'GET ]) 
   (Proxy :: Proxy Session) (Proxy :: Proxy "session")
   (Proxy :: Proxy App)
+  :<|> deleteSessionMethod
   :<|> listSessions
   :<|> connectMethod
   :<|> disconnectMethod
+
+-- | Deleteion of session from server
+deleteSessionMethod :: Id Session 
+  -> MToken' '["delete-session"]
+  -> App Unit 
+deleteSessionMethod i token = do 
+  guardAuthToken token 
+  closeSession i 
+  runDB $ deleteSession i 
+  return Unit
 
 -- | Open a session with given connection info
 connectMethod :: Id Connection 
@@ -202,3 +214,15 @@ listSessions mp msize mcon token = do
         pagedListItems = catMaybes es
       , pagedListPages = ceiling $ (fromIntegral total :: Double) / fromIntegral size
       }
+
+-- | Stoping and deleting info about a session
+deleteSession :: Id Session -> SqlPersistT IO ()
+deleteSession i = do 
+  msess <- get (VKey i)
+  case msess of 
+    Nothing -> return ()
+    Just sess -> do 
+      let logi = sess ^. rlens (Proxy :: Proxy '("log", EventLogId)) . rfield
+
+      deleteEventLog $ toKey logi
+      deleteResource i 

@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : Portable
 -}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecursiveDo #-}
 module Profile.Live.Server.Client.Session(
   -- * Server API
     sessionGet
@@ -39,6 +40,7 @@ import Profile.Live.Server.API.EventLog
 import Profile.Live.Server.API.Session
 import Profile.Live.Server.Client.Async
 import Profile.Live.Server.Client.Bootstrap.Button
+import Profile.Live.Server.Client.Bootstrap.Modal
 import Profile.Live.Server.Client.EventLog
 import Profile.Live.Server.Client.Pagination
 import Profile.Live.Server.Client.Router
@@ -49,6 +51,10 @@ type SessPerm s = MToken '[ 'PermConcat ( 'PermLabel s) ( 'PermLabel "session")]
 sessionGet :: Id Session
   -> SessPerm "read-"
   -> EitherT ServantError IO Session
+
+sessionDelete :: Id Session 
+  -> MToken' '["delete-session"]
+  -> EitherT ServantError IO Unit 
 
 sessionList :: Maybe Page 
   -> Maybe PageSize 
@@ -65,10 +71,40 @@ sessionDisconnect :: Id Session
   -> EitherT ServantError IO Unit
 
 (      sessionGet
+  :<|> sessionDelete
   :<|> sessionList
   :<|> sessionConnect
   :<|> sessionDisconnect
     ) = client sessionAPI Nothing
+
+-- | Actions that used internaly in widget
+data SessionAction = 
+    SessionViewLog EventLogId
+  | SessionViewBined EventLogId
+  | SessionDisconnect (Id Session)
+  | SessionDelete (Id Session)
+  deriving (Eq, Show)
+
+getSessionViewLog :: SessionAction -> Maybe EventLogId
+getSessionViewLog a = case a of 
+  SessionViewLog i -> Just i 
+  _ -> Nothing 
+
+getSessionViewBined :: SessionAction -> Maybe EventLogId
+getSessionViewBined a = case a of 
+  SessionViewBined i -> Just i 
+  _ -> Nothing 
+
+getSessionDisconnect :: SessionAction -> Maybe (Id Session)
+getSessionDisconnect a = case a of 
+  SessionDisconnect i -> Just i 
+  _ -> Nothing 
+
+getSessionDelete :: SessionAction -> Maybe (Id Session)
+getSessionDelete a = case a of 
+  SessionDelete i -> Just i 
+  _ -> Nothing 
+
 
 -- | Render list of sessions with pagination
 sessionsWidget :: forall t m . MonadWidget t m 
@@ -85,48 +121,61 @@ sessionsWidget token backW conn = do
 
   connectedE <- connectRequest connectE 
 
-  let reloadE = connectedE
-  viewE <- renderListReload (Just 10) renderSession requestSessions reloadE
+  rec 
+    let reloadE = leftmost [connectedE, disconnectedE, deletedE]
+    sessEvent <- renderListReload (Just 10) renderSession requestSessions reloadE
 
+    let disconnectE = fmapMaybe getSessionDisconnect sessEvent
+    disconnectedE <- disconnectRequest disconnectE 
+
+    let deleteE = fmapMaybe getSessionDelete sessEvent
+    deletedE <- deleteRequest deleteE
+
+  let viewLogE = fmapMaybe getSessionViewLog sessEvent
   let thisW = sessionsWidget token backW conn
-  let viewR = Route $ eventLogWidget token (Just thisW) <$> viewE
+  let viewLogR = Route $ eventLogWidget token (Just thisW) <$> viewLogE
   let backR = Route $ maybe never (\w -> const w <$> backE) backW
-  return $ viewR <> backR
+  return $ viewLogR <> backR
   where 
 
-  renderSession :: WithId (Id Session) Session -> m (Event t EventLogId)
-  renderSession (WithField _ sess) = elClass "div" "panel panel-default" $ do 
+  renderSession :: WithId (Id Session) Session -> m (Event t SessionAction)
+  renderSession (WithField sid sess) = elClass "div" "panel panel-default" $ do 
     elClass "div" "panel-body" $ do
       let start = sess ^. rlens (Proxy :: Proxy '("start", UTCTime)) . rfield
           end = sess ^. rlens (Proxy :: Proxy '("end", Maybe UTCTime)) . rfield
           logi = sess ^. rlens (Proxy :: Proxy '("log", EventLogId)) . rfield
       
-      el "p" $ do 
+      el "p" $
         elAttr "span" [("style", "font-weight: bold;")] $ text $ "Start: " <> show start 
-          <> " End: " <> show end
-
-      (closeE, viewE) <- buttonGroup $ do 
+      el "p" $ 
+        elAttr "span" [("style", "font-weight: bold;")] $ text $ "End: " <> show end
+  
+      buttonGroup $ do 
         closeE <- case end of 
-          Nothing -> blueButton "Disconnect" 
+          Nothing -> fmap (const $ SessionDisconnect sid) <$> blueButton "Disconnect" 
           Just _ -> return never
-        viewE <- fmap (const logi) <$> infoButton "View"
-        return (closeE, viewE)
+        viewE <- fmap (const $ SessionViewLog logi) <$> infoButton "View"
+        binedE <- fmap (const $ SessionViewBined logi) <$> infoButton "Graphic"
+        delE <- confirm def =<< (fmap (const $ SessionDelete sid) <$> redButton "Delete")
+        return $ leftmost [viewE, closeE, binedE, delE]
 
-      return viewE
 
   requestSessions :: Event t Page -> m (Event t (Page, PagedList (Id Session) Session))
-  requestSessions e = do 
-    let mkReq p = (,)
-          <$> pure p 
-          <*> sessionList (Just p) Nothing (Just conn) (Just (Token token))
-    reqEv <- asyncAjax mkReq e
-    _ <- widgetHold (pure ()) $ ffor reqEv $ \resp -> case resp of 
-      Left er -> danger er 
-      Right _ -> return ()    
-    let itemsE = either (const $ (0, PagedList [] 0)) id <$> reqEv
-    return itemsE 
+  requestSessions e = simpleRequest e $ \p -> (,)
+    <$> pure p 
+    <*> sessionList (Just p) Nothing (Just conn) (Just (Token token))
 
   connectRequest :: Event t (Id Connection) -> m (Event t (Id Session))
   connectRequest e = simpleRequest e $ \conn -> do 
     OnlyField i <- sessionConnect conn (Just (Token token))
     return i
+
+  disconnectRequest :: Event t (Id Session) -> m (Event t (Id Session))
+  disconnectRequest e = simpleRequest e $ \sess -> do 
+    _ <- sessionDisconnect sess (Just (Token token))
+    return sess
+
+  deleteRequest :: Event t (Id Session) -> m (Event t (Id Session))
+  deleteRequest e = simpleRequest e $ \sess -> do 
+    _ <- sessionDelete sess (Just (Token token))
+    return sess

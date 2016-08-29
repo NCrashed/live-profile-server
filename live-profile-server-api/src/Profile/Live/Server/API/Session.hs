@@ -56,6 +56,9 @@ $(declareVinylPatch ''Session)
 -- | API about sessions to remote Haskell applications that we profile
 type SessionAPI = "session" :> (
        RESTFullWith '[ 'GET] Session "session"
+  :<|> Capture "session-id" (Id Session)
+    :> TokenHeader' '["delete-session"]
+    :> Delete '[JSON] Unit
   :<|> "list" 
     :> PageParam
     :> PageSizeParam 
