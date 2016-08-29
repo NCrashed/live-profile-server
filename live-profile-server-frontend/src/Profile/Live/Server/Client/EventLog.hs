@@ -72,6 +72,6 @@ eventLogWidget tok backW eid = do
 
   downloadButton :: String -> m ()
   downloadButton lbl = elAttr "a" [
-      ("class", "button button-primary")
+      ("class", "btn btn-primary")
     , ("href", "/eventlog/download/" ++ show eid)
     ] $ text lbl
