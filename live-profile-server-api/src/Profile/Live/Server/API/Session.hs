@@ -18,9 +18,9 @@ module Profile.Live.Server.API.Session(
   , sessionOperations
   ) where 
 
---import Data.Text 
 import Control.Lens
 import Data.Aeson.Unit
+import Data.Aeson.WithField
 import Data.Monoid
 import Data.Proxy
 import Data.Swagger
@@ -62,8 +62,14 @@ type SessionAPI = "session" :> (
     :> QueryParam "connection" (Id Connection)
     :> TokenHeader' '["read-session"]
     :> Get '[JSON] (PagedList (Id Session) Session) 
-  :<|> "connect" :> Capture "connection-id" (Id Connection) :> Post '[JSON] (Id Session)
-  :<|> "disconnect" :> Capture "session-id" (Id Session) :> Post '[JSON] Unit
+  :<|> "connect" 
+    :> Capture "connection-id" (Id Connection) 
+    :> TokenHeader' '["connect-session"]
+    :> Post '[JSON] (OnlyId (Id Session))
+  :<|> "disconnect" 
+    :> Capture "session-id" (Id Session) 
+    :> TokenHeader' '["connect-session"]
+    :> Post '[JSON] Unit
   )
 
 -- Needed due bug with `Can't find interface-file declaration for variable $tc'(,)`

@@ -57,11 +57,11 @@ sessionList :: Maybe Page
   -> EitherT ServantError IO (PagedList (Id Session) Session)
 
 sessionConnect :: Id Connection
-  -- -> MToken' '["connect-session"]
-  -> EitherT ServantError IO (Id Session)
+  -> MToken' '["connect-session"]
+  -> EitherT ServantError IO (OnlyId (Id Session))
 
 sessionDisconnect :: Id Session 
-  -- -> MToken' '["connect-session"]
+  -> MToken' '["connect-session"]
   -> EitherT ServantError IO Unit
 
 (      sessionGet
@@ -78,11 +78,15 @@ sessionsWidget :: forall t m . MonadWidget t m
   -> m (Route t m)
 sessionsWidget token backW conn = do 
   header "Sessions"
-  backE <- centered $ blueButton "Back"
+  (backE, connectE) <- centered $ buttonGroup $ do 
+    backE <- blueButton "Back"
+    connectE <- fmap (const conn) <$> blueButton "Connect"
+    return (backE, connectE)
 
-  --connectE <- fmap (const 0) <$> blueButton "Connect"
+  connectedE <- connectRequest connectE 
 
-  viewE <- renderList (Just 10) renderSession requestSessions
+  let reloadE = connectedE
+  viewE <- renderListReload (Just 10) renderSession requestSessions reloadE
 
   let thisW = sessionsWidget token backW conn
   let viewR = Route $ eventLogWidget token (Just thisW) <$> viewE
@@ -121,3 +125,8 @@ sessionsWidget token backW conn = do
       Right _ -> return ()    
     let itemsE = either (const $ (0, PagedList [] 0)) id <$> reqEv
     return itemsE 
+
+  connectRequest :: Event t (Id Connection) -> m (Event t (Id Session))
+  connectRequest e = simpleRequest e $ \conn -> do 
+    OnlyField i <- sessionConnect conn (Just (Token token))
+    return i

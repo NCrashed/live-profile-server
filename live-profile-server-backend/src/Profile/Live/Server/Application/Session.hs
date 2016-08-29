@@ -63,15 +63,19 @@ sessionServer = restServer (Proxy :: Proxy '[ 'GET ])
 
 -- | Open a session with given connection info
 connectMethod :: Id Connection 
-  -> App (Id Session)
-connectMethod i = do 
+  -> MToken' '["connect-session"]
+  -> App (OnlyId (Id Session))
+connectMethod i token = do 
+  guardAuthToken token 
   conn <- runDB404 "connection" $ get (VKey i)
-  openSession (Entity (VKey i) conn)
+  OnlyField <$> openSession (Entity (VKey i) conn)
 
 -- | Close connection to given session
 disconnectMethod :: Id Session 
+  -> MToken' '["connect-session"]
   -> App Unit
-disconnectMethod i = do 
+disconnectMethod i token = do 
+  guardAuthToken token 
   closeSession i 
   t <- liftIO getCurrentTime
   runDB $ setSessionEndTime i t

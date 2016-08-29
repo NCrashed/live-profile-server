@@ -74,7 +74,6 @@ renderPageReload maxPages render getPage reloadEvent = do
   renderContent :: Page -> PagedList (Id a) a -> m (Event t Page, Event t b)
   renderContent curw pl@(PagedList _ w) = do 
     pageE <- renderPager maxPages curw w
-    let pageE = never
     es <- render curw pl
     return (pageE, es)
 
