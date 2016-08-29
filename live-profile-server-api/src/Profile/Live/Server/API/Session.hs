@@ -25,6 +25,7 @@ import Data.Monoid
 import Data.Proxy
 import Data.Swagger
 import Data.Swagger.Internal.Schema
+import Data.Text (Text)
 import Data.Time 
 import Data.Vinyl.Derived
 import Servant.API
@@ -45,6 +46,7 @@ type Session = FieldRec '[
   , '("start", UTCTime)
   , '("end", Maybe UTCTime)
   , '("log", EventLogId)
+  , '("error", Maybe Text)
   ]
   
 instance Named Session where 

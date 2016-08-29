@@ -89,8 +89,6 @@ disconnectMethod :: Id Session
 disconnectMethod i token = do 
   guardAuthToken token 
   closeSession i 
-  t <- liftIO getCurrentTime
-  runDB $ setSessionEndTime i t
   return Unit
 
 -- | Get currently running sessions from applicaiton state
@@ -121,6 +119,13 @@ setSessionEndTime i t = do
   let endField = DBField (Proxy :: Proxy '("end", Maybe UTCTime)) :: EntityField Session (Maybe UTCTime)
   update (VKey i) [endField =. Just t]
 
+-- | Update session end time and stop reason in DB
+setSessionEndTimeWithError :: Id Session -> UTCTime -> Text -> SqlPersistT IO ()
+setSessionEndTimeWithError i t er = do 
+  let endField = DBField (Proxy :: Proxy '("end", Maybe UTCTime)) :: EntityField Session (Maybe UTCTime)
+  let errField = DBField (Proxy :: Proxy '("error", Maybe Text)) :: EntityField Session (Maybe Text)
+  update (VKey i) [endField =. Just t, errField =. Just er]
+
 -- | Open connection to remote profile monitor and update internal container
 -- of opened sessions. Also inserts new session to RDBMS.
 --
@@ -143,6 +148,17 @@ openSession (Entity i conn) = do
   -- Allocate new eventlog 
   el <- runDB startEventLog
 
+  -- Construct session and update state
+  t <- liftIO getCurrentTime
+  let sess :: Session 
+      sess = Field (unVKey i) 
+          :& Field t 
+          :& Field Nothing 
+          :& Field (fromKey el) 
+          :& Field Nothing
+          :& RNil
+  VKey sessId <- runDB $ insert sess 
+
   -- Define behavior with callbacks
   run <- getAppRunner
   let bhv = ClientBehavior {
@@ -151,20 +167,13 @@ openSession (Entity i conn) = do
           , clientOnEvent = run . runDB . void . addEventLogEvent el
           , clientOnService = print -- TODO: add reaction to this
           , clientOnState = run . runDB . void . addEventLogState el
+          , clientOnExit = \me -> run $ case me of 
+              Nothing -> closeSession sessId 
+              Just e -> closeSessionWithError sessId (showt e)
         }
 
   -- Start client
   tid <- liftIO $ startLiveClient logger opts term bhv
-
-  -- Construct session and update state
-  t <- liftIO getCurrentTime
-  let sess :: Session 
-      sess = Field (unVKey i) 
-          :& Field t 
-          :& Field Nothing 
-          :& Field (fromKey el) 
-          :& RNil
-  VKey sessId <- runDB $ insert sess 
   modifySessions $ H.insert sessId (tid, term)
 
   return sessId 
@@ -182,7 +191,7 @@ openSession (Entity i conn) = do
 
 -- | Close running session of profiling and update app state.
 --
--- Warning: Doesn't updates session in RDMBS.
+-- Warning: Updates session in RDMBS.
 closeSession :: Id Session -> App ()
 closeSession i = do 
   m <- getSessions
@@ -191,6 +200,23 @@ closeSession i = do
     Just (_, term) -> do 
       terminateAndWait term 
       modifySessions $ H.delete i
+      t <- liftIO getCurrentTime
+      runDB $ setSessionEndTime i t
+
+-- | Close running session of profiling and update app state.
+--
+-- Note: saves provided string as reason of termination.
+-- Warning: Updates session in RDMBS.
+closeSessionWithError :: Id Session -> Text -> App ()
+closeSessionWithError i er = do 
+  m <- getSessions
+  case H.lookup i m of 
+    Nothing -> return ()
+    Just (_, term) -> do 
+      terminateAndWait term 
+      modifySessions $ H.delete i
+      t <- liftIO getCurrentTime
+      runDB $ setSessionEndTimeWithError i t er
 
 -- | Enlisint existing sessions
 listSessions :: Maybe Page 

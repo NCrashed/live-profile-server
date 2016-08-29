@@ -51,7 +51,7 @@ library
     , file-embed                  >= 0.0.10   && < 0.1
     , ghc-events                  >= 0.5      && < 0.6
     , lens                        >= 4.14     && < 4.15
-    , live-profile-client         >= 0.1      && < 0.2
+    , live-profile-client         >= 0.2      && < 0.3
     , live-profile-protocol       >= 0.1      && < 0.2
     , live-profile-server-api     == 0.1.0.0
     , monad-logger                >= 0.3      && < 0.4
