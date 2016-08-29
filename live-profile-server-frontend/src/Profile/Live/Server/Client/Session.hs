@@ -42,6 +42,7 @@ import Profile.Live.Server.Client.Bootstrap.Button
 import Profile.Live.Server.Client.EventLog
 import Profile.Live.Server.Client.Pagination
 import Profile.Live.Server.Client.Router
+import Profile.Live.Server.Client.Utils
 
 type SessPerm s = MToken '[ 'PermConcat ( 'PermLabel s) ( 'PermLabel "session")]
 
@@ -76,7 +77,8 @@ sessionsWidget :: forall t m . MonadWidget t m
   -> Id Connection -- ^ Connection we want to view sessions to 
   -> m (Route t m)
 sessionsWidget token backW conn = do 
-  backE <- blueButton "Back"
+  header "Sessions"
+  backE <- centered $ blueButton "Back"
 
   --connectE <- fmap (const 0) <$> blueButton "Connect"
 
@@ -94,14 +96,17 @@ sessionsWidget token backW conn = do
       let start = sess ^. rlens (Proxy :: Proxy '("start", UTCTime)) . rfield
           end = sess ^. rlens (Proxy :: Proxy '("end", Maybe UTCTime)) . rfield
           logi = sess ^. rlens (Proxy :: Proxy '("log", EventLogId)) . rfield
-      elAttr "span" [("style", "font-weight: bold;")] $ text $ "Start: " <> show start 
-        <> " End: " <> show end
+      
+      el "p" $ do 
+        elAttr "span" [("style", "font-weight: bold;")] $ text $ "Start: " <> show start 
+          <> " End: " <> show end
 
-      closeE <- case end of 
-        Nothing -> blueButton "Disconnect" 
-        Just _ -> return never
-
-      viewE <- fmap (const logi) <$> blueButton "View"
+      (closeE, viewE) <- buttonGroup $ do 
+        closeE <- case end of 
+          Nothing -> blueButton "Disconnect" 
+          Just _ -> return never
+        viewE <- fmap (const logi) <$> infoButton "View"
+        return (closeE, viewE)
 
       return viewE
 
@@ -116,5 +121,3 @@ sessionsWidget token backW conn = do
       Right _ -> return ()    
     let itemsE = either (const $ (0, PagedList [] 0)) id <$> reqEv
     return itemsE 
-
-  danger = elClass "div" "alert alert-danger" . text 

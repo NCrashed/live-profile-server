@@ -10,12 +10,13 @@ import Data.Either
 import Data.Maybe 
 import Data.Text (pack)
 import Reflex.Dom 
+import Servant.API.Auth.Token
 
 import Profile.Live.Server.Client.Async
 import Profile.Live.Server.Client.Auth
-import Profile.Live.Server.Client.Bootstrap.Modal
 import Profile.Live.Server.Client.Bootstrap.Form
-import Servant.API.Auth.Token
+import Profile.Live.Server.Client.Bootstrap.Modal
+import Profile.Live.Server.Client.Utils 
 
 import qualified Data.Map as Map 
 
@@ -57,8 +58,6 @@ authWidget touchSecs = mdo
 
   toMaybe (Left _) = Nothing
   toMaybe (Right x) = Just x
-
-  danger = elClass "div" "alert alert-danger" . text 
 
 -- | Converts seconds into expiration duration with special time gap for client to 
 -- perform touch request

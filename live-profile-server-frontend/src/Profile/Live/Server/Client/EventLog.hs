@@ -26,6 +26,7 @@ import Profile.Live.Server.Client.Async
 import Profile.Live.Server.Client.Bootstrap.Button 
 import Profile.Live.Server.Client.Router 
 import Profile.Live.Server.Client.Pagination 
+import Profile.Live.Server.Client.Utils 
 
 -- | Getting list of events
 eventsList :: EventLogId 
@@ -55,8 +56,11 @@ eventLogWidget :: forall t m . MonadWidget t m
   -> EventLogId -- ^ Id of eventlog
   -> m (Route t m)
 eventLogWidget tok backW eid = do 
-  backE <- blueButton "Back"
-  downloadButton "Download"
+  header "Event Log"
+  backE <- centered $ buttonGroup $ do 
+    backE <- blueButton "Back"
+    downloadButton "Download"
+    return backE
 
   _ <- renderPage (Just 10) renderEvents requestEvents
 

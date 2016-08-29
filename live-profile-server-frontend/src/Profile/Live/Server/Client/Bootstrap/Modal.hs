@@ -42,6 +42,8 @@ import System.IO.Unsafe
 
 import qualified Data.Map as Map 
 
+import Profile.Live.Server.Client.Utils
+
 foreign import javascript unsafe "$('#'+$1).modal({ backdrop: 'static', keyboard: false });" js_showModal :: JSString -> IO ()
 foreign import javascript unsafe "$('#'+$1).modal('hide');" js_hideModal :: JSString -> IO ()
 foreign import javascript unsafe "$('#'+$1).on('show.bs.modal',$2);" js_onModalShown :: JSString -> Callback (IO ()) -> IO ()
@@ -206,8 +208,6 @@ simpleValidateModal SimpleModalConfig{..} body validate = modal _simpleModalConf
 
     modalHideOn i acceptedEv
     return $ leftmost [cancelEv', fmap Just acceptedEv]
-
-  danger = elClass "div" "alert alert-danger" . text 
 
 -- | Add callback when the modal is shown, returns teardown callback
 onModalShown :: MonadIO m => ModalId -> IO () -> m (IO ())

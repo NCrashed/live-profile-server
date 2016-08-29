@@ -51,6 +51,7 @@ import Profile.Live.Server.Client.Bootstrap.Modal
 import Profile.Live.Server.Client.Pagination
 import Profile.Live.Server.Client.Router
 import Profile.Live.Server.Client.Session
+import Profile.Live.Server.Client.Utils
 
 type ConnPerm s = MToken '[ 'PermConcat ('PermLabel s) ('PermLabel "connection")]
 
@@ -98,7 +99,9 @@ connectionsWidget token = route renderConnections
   where
   renderConnections :: m (Route t m)
   renderConnections = do 
-    createdE <- creationWidget 
+    elAttr "h1" [("style", "text-align: center;")] $ text "Connections"
+    createdE <- centered creationWidget 
+
     sessionEvent <- renderListReload (Just 10) renderConnection requestConns createdE
     let thisW = renderConnections
     return $ Route $ sessionsWidget token (Just thisW) <$> sessionEvent 
@@ -121,11 +124,16 @@ connectionsWidget token = route renderConnections
           host = conn ^. rlens (Proxy :: Proxy '("host", T.Text)) . rfield
           port = conn ^. rlens (Proxy :: Proxy '("port", Word)) . rfield
           lastUsed = conn ^. rlens (Proxy :: Proxy '("lastUsed", Maybe UTCTime)) . rfield
-      elAttr "span" [("style", "font-weight: bold;")] $ text $ T.unpack name
-      text $ " (" <> T.unpack host <> ":" <> show port <> ") "
-        <> "Last used: " <> show lastUsed
-      sessions <- fmap (const i) <$> blueButton "Sessions"
-      del <- blueButton "Delete"
+      
+      el "p" $ do 
+        elAttr "span" [("style", "font-weight: bold;")] $ text $ T.unpack name
+        text $ " (" <> T.unpack host <> ":" <> show port <> ") "
+          <> "Last used: " <> show lastUsed
+
+      (sessions, del) <- buttonGroup $ (,)
+        <$> (fmap (const i) <$> blueButton "Sessions")
+        <*> redButton "Delete"
+
       return sessions
 
   requestConns :: Event t Page -> m (Event t (Page, PagedList (Id Connection) Connection))
@@ -139,8 +147,6 @@ connectionsWidget token = route renderConnections
       Right _ -> return ()    
     let itemsE = either (const $ (0, PagedList [] 0)) id <$> reqEv
     return itemsE 
-
-  danger = elClass "div" "alert alert-danger" . text 
 
   -- | Modal for creation of connection 
   creationModal :: Event t () -> m (Modal t Connection)
