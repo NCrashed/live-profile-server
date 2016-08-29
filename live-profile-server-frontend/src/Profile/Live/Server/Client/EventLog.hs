@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Profile.Live.Server.Client.EventLog(
-    eventLogWidget
+    eventsList
+  , downloadEventLog
+  , eventLogWidget
   ) where 
 
 import Control.Monad 
@@ -43,7 +46,7 @@ downloadEventLog :: EventLogId
 
 instance GHCJSUnrender OctetStream EventLogFile where 
   --ghcjsUnrender :: Proxy ctype -> JSVal -> IO (Either String a)
-  ghcjsUnrender p v = return $ Left "Unsupported"
+  ghcjsUnrender _ _ = return $ Left "Unsupported"
 
 -- | Widget to display raw eventlog
 eventLogWidget :: forall t m . MonadWidget t m 

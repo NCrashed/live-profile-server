@@ -1,7 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FunctionalDependencies #-}
 module Profile.Live.Server.Client.Bootstrap.Modal(
     modal
   , simpleModal
+  , simpleValidateModal
   , ModalId
   , Modal(..)
   -- * Modal configuration
@@ -13,9 +15,9 @@ module Profile.Live.Server.Client.Bootstrap.Modal(
   -- * Simple modal configuration
   , SimpleModalConfig(..)
   , defaultSimpleModalCfg
-  , modalSimpleCfgAcceptTitle
-  , modalSimpleCfgCancelTitle
-  , modalSimpleCfg
+  , acceptTitle
+  , cancelTitle
+  , modalCfg
   -- * Utils
   , modalShowOn
   , modalHideOn
@@ -25,12 +27,13 @@ module Profile.Live.Server.Client.Bootstrap.Modal(
   , acceptModalBtn
   ) where 
 
-import Control.Monad.IO.Class
 import Control.Lens.TH
+import Control.Monad.IO.Class
 import Data.Default
 import Data.Dependent.Map
 import Data.IORef 
 import Data.JSString (pack)
+import Data.Unique
 import GHCJS.Foreign.Callback
 import GHCJS.Types
 import Reflex.Dom 
@@ -134,30 +137,33 @@ modal ModalConfig{..} bodyWidget footerWidget = do
     elClass "h4" "modal-title" $ text _modalCfgTitle
     return closeEv 
 
+-- | Reference to global counter for unique id generation
+globalIdRef :: IORef Int 
+globalIdRef = unsafePerformIO $ newIORef 0
+{-# NOINLINE globalIdRef #-}
+
 -- | Generate unique ids
 genId :: MonadIO m => m Int 
 genId = liftIO $ do 
-  i <- readIORef ref 
-  modifyIORef' ref (+1)
+  i <- readIORef globalIdRef 
+  modifyIORef' globalIdRef (+1)
   return i 
-  where 
-  ref = unsafePerformIO $ newIORef 0
 
 -- | Holds prerequisites for modal creation
 data SimpleModalConfig t = SimpleModalConfig {
-  _modalSimpleCfgAcceptTitle :: !String -- ^ Display for OK button
-, _modalSimpleCfgCancelTitle :: !String -- ^ Display for Cancel button
-, _modalSimpleCfg :: !(ModalConfig t) -- ^ More general config
+  _simpleModalConfigAcceptTitle :: !String -- ^ Display for OK button
+, _simpleModalConfigCancelTitle :: !String -- ^ Display for Cancel button
+, _simpleModalConfigModalCfg :: !(ModalConfig t) -- ^ More general config
 }
 
-$(makeLenses ''SimpleModalConfig)
+$(makeLensesWith camelCaseFields ''SimpleModalConfig)
 
 -- | Default values for modal config
 defaultSimpleModalCfg :: Reflex t => SimpleModalConfig t
 defaultSimpleModalCfg = SimpleModalConfig {
-    _modalSimpleCfgAcceptTitle = "OK"
-  , _modalSimpleCfgCancelTitle = "Cancel"
-  , _modalSimpleCfg = defaultModalCfg
+    _simpleModalConfigAcceptTitle = "OK"
+  , _simpleModalConfigCancelTitle = "Cancel"
+  , _simpleModalConfigModalCfg = defaultModalCfg
   }
 
 instance Reflex t => Default (SimpleModalConfig t) where 
@@ -167,15 +173,41 @@ instance Reflex t => Default (SimpleModalConfig t) where
 simpleModal :: MonadWidget t m => SimpleModalConfig t
   -> m (Dynamic t a) -- ^ Modal body
   -> m (Modal t a)
-simpleModal SimpleModalConfig{..} body = modal _modalSimpleCfg body footer 
+simpleModal SimpleModalConfig{..} body = modal _simpleModalConfigModalCfg body footer 
   where 
   footer i dyna = do 
-    cancelEv <- cancelModalBtn _modalSimpleCfgCancelTitle
-    acceptEv <- acceptModalBtn _modalSimpleCfgAcceptTitle
+    cancelEv <- cancelModalBtn _simpleModalConfigCancelTitle
+    acceptEv <- acceptModalBtn _simpleModalConfigAcceptTitle
     let acceptEv' = fmap Just $ dyna `tagDyn` acceptEv
         cancelEv' = fmap (const Nothing) cancelEv
     modalHideOn i acceptEv'
     return $ leftmost [cancelEv', acceptEv']
+
+-- | Create simple modal with "OK" and "Cancel" buttons
+simpleValidateModal :: forall t m a b . MonadWidget t m 
+  => SimpleModalConfig t -- ^ Configuration of simple modal
+  -> m (Dynamic t a) -- ^ Modal body
+  -> (a -> WidgetHost m (Either String b)) -- ^ Validation
+  -> m (Modal t b)
+simpleValidateModal SimpleModalConfig{..} body validate = modal _simpleModalConfigModalCfg body footer 
+  where 
+  footer i dyna = do 
+    cancelEv <- cancelModalBtn _simpleModalConfigCancelTitle
+    acceptEv <- acceptModalBtn _simpleModalConfigAcceptTitle
+    let acceptEv'  = dyna `tagDyn` acceptEv :: Event t a
+
+    (validateEv :: Event t (Either String b)) <- performEvent $ validate <$> acceptEv'
+    
+    let acceptedEv = fmapMaybe (either (const Nothing) Just) validateEv :: Event t b
+        failedEv = fmapMaybe (either Just (const Nothing)) validateEv :: Event t String
+        cancelEv'  = fmap (const Nothing) cancelEv :: Event t (Maybe b)
+
+    _ <- widgetHold (pure ()) $ danger <$> failedEv 
+
+    modalHideOn i acceptedEv
+    return $ leftmost [cancelEv', fmap Just acceptedEv]
+
+  danger = elClass "div" "alert alert-danger" . text 
 
 -- | Add callback when the modal is shown, returns teardown callback
 onModalShown :: MonadIO m => ModalId -> IO () -> m (IO ())

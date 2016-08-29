@@ -14,6 +14,7 @@ import Reflex.Dom
 import Profile.Live.Server.Client.Async
 import Profile.Live.Server.Client.Auth
 import Profile.Live.Server.Client.Bootstrap.Modal
+import Profile.Live.Server.Client.Bootstrap.Form
 import Servant.API.Auth.Token
 
 import qualified Data.Map as Map 
@@ -72,21 +73,6 @@ authForm = horizontalForm $ do
   login <- mapDyn pack $ value loginInput
   pass <- mapDyn pack $ value passInput
   combineDyn (,) login pass
-  where 
-  horizontalForm = elClass "form" "form-horizontal"
-  formGroup = elClass "div" "form-group"
-  mkLabel cs = elAttr "label" (Map.fromList cs)
-
-  formGroupText labelText cfg = formGroup $ do 
-    mkLabel [ ("for", elemId)
-            , ("class", "col-sm-2 control-label")] $ text labelText
-    elClass "div" "col-sm-10" $ textInput cfg {
-        _textInputConfig_attributes = constDyn $ Map.fromList [
-            ("class", "form-control")
-          , ("id", elemId)]
-      }
-    where 
-      elemId = "input"++labelText
 
 -- | Try to sustain existing token every n seconds, if server invalidates the
 -- the token, emits event 
