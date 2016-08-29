@@ -29,14 +29,6 @@ import Servant.API.Auth.Token.Pagination
 import Servant.Client 
 
 import GHCJS.Marshal
-import GHCJS.Types
-import Data.Aeson
-
-import Reflex
-import Reflex.Dom.Class
-import Control.Monad.IO.Class 
-import Control.Concurrent
-import Data.Bifunctor
 
 import Profile.Live.Server.Client.Async 
 

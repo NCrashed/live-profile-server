@@ -55,7 +55,7 @@ type EventLogAPI = "eventlog" :> (
     :> Get '[JSON] (PagedList (Id Event) Event)
   :<|> "download"
     :> Capture "eventlog" EventLogId
-    :> TokenHeader' '["read-eventlog"]
+    -- :> TokenHeader' '["read-eventlog"]
     :> Get '[OctetStream] (
         Headers '[S.Header "Content-Disposition" Text] 
         EventLogFile)

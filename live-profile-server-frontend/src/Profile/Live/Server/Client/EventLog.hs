@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 module Profile.Live.Server.Client.EventLog(
     eventLogWidget
   ) where 
@@ -5,14 +6,17 @@ module Profile.Live.Server.Client.EventLog(
 import Control.Monad 
 import Control.Monad.Trans.Either
 import Data.Aeson.WithField
+import Data.Text (Text)
 import Reflex 
 import Reflex.Dom 
+import Servant.API as S
 import Servant.API.Auth.Token 
 import Servant.API.Auth.Token.Pagination
 import Servant.API.REST.Derive 
 import Servant.Client 
+import Servant.Common.Req
 
-import qualified GHC.RTS.Events as E 
+import qualified GHC.RTS.Events as E
 
 import Profile.Live.Server.API.EventLog
 import Profile.Live.Server.Client.Async
@@ -27,8 +31,19 @@ eventsList :: EventLogId
   -> MToken' '["read-eventlog"]
   -> EitherT ServantError IO (PagedList (Id E.Event) E.Event) 
 
-( eventsList 
+downloadEventLog :: EventLogId
+--  -> MToken' '["read-eventlog"]
+  -> EitherT ServantError IO (
+      Headers '[S.Header "Content-Disposition" Text] 
+        EventLogFile)
+
+(      eventsList 
+  :<|> downloadEventLog
   ) = client eventLogAPI Nothing
+
+instance GHCJSUnrender OctetStream EventLogFile where 
+  --ghcjsUnrender :: Proxy ctype -> JSVal -> IO (Either String a)
+  ghcjsUnrender p v = return $ Left "Unsupported"
 
 -- | Widget to display raw eventlog
 eventLogWidget :: forall t m . MonadWidget t m 
@@ -38,6 +53,7 @@ eventLogWidget :: forall t m . MonadWidget t m
   -> m (Route t m)
 eventLogWidget tok backW eid = do 
   backE <- blueButton "Back"
+  downloadButton "Download"
 
   _ <- renderPage (Just 10) renderEvents requestEvents
 
@@ -53,3 +69,9 @@ eventLogWidget tok backW eid = do
   requestEvents ep = simpleRequest ep (\p -> (,)
     <$> pure p
     <*> eventsList eid (Just p) Nothing (Just (Token tok)))
+
+  downloadButton :: String -> m ()
+  downloadButton lbl = elAttr "a" [
+      ("class", "button button-primary")
+    , ("href", "/eventlog/download/" ++ show eid)
+    ] $ text lbl

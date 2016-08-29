@@ -5,9 +5,7 @@ module Profile.Live.Server.Client.Auth.Widget(
   ) where 
 
 import Control.Lens 
-import Control.Monad 
 import Data.Aeson.WithField
-import Data.Bifunctor
 import Data.Either
 import Data.Maybe 
 import Data.Text (pack)
@@ -47,7 +45,7 @@ authWidget touchSecs = mdo
     -- Perform query
     let mkSignin (login, pass) = authSignin (Just login) (Just pass) (Just $ prolongedExpire touchSecs)
     reqEv <- asyncAjax mkSignin acceptEv'
-    widgetHold (pure ()) $ ffor reqEv $ \resp -> case resp of 
+    _ <- widgetHold (pure ()) $ ffor reqEv $ \resp -> case resp of 
       Left er -> danger er 
       Right _ -> return ()    
     let tokenEv = toMaybe . (fmap (\(OnlyField t) -> t)) <$> reqEv
@@ -60,7 +58,6 @@ authWidget touchSecs = mdo
   toMaybe (Right x) = Just x
 
   danger = elClass "div" "alert alert-danger" . text 
-  jpack = Just . pack 
 
 -- | Converts seconds into expiration duration with special time gap for client to 
 -- perform touch request
@@ -90,14 +87,6 @@ authForm = horizontalForm $ do
       }
     where 
       elemId = "input"++labelText
-
-  formGroupBtn btnText = formGroup $ elClass "div" "col-sm-offset-2 col-sm-10" $
-    buttonClass btnText "btn btn-default"
-
-  buttonClass :: MonadWidget t m => String -> String -> m (Event t ())
-  buttonClass s c = do
-    (e, _) <- elAttr' "button" (Map.fromList [("type","button"), ("class",c)]) $ text s
-    return $ domEvent Click e
 
 -- | Try to sustain existing token every n seconds, if server invalidates the
 -- the token, emits event 

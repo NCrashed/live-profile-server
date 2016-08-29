@@ -160,11 +160,11 @@ listEvents ei mp msize token = do
 
 -- | Downloading eventlog file from the server
 downloadEventLog :: EventLogId -- ^ Id of log
-  -> MToken' '["read-eventlog"] -- ^ Authorisation token
+--  -> MToken' '["read-eventlog"] -- ^ Authorisation token
   -> App (Headers '[S.Header "Content-Disposition" Text]
       EventLogFile)
-downloadEventLog i token = do 
-  guardAuthToken token 
+downloadEventLog i {-token-} = do 
+--  guardAuthToken token 
   elog <- runDB404 "event log" $ readEventLog (toKey i)
   let payload = B.runPut $ putEventLog elog 
   let filename = showt i <> ".eventlog"
