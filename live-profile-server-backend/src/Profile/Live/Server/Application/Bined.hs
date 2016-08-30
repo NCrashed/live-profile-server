@@ -7,12 +7,14 @@ Maintainer  : ncrashed@gmail.com
 Stability   : experimental
 Portability : Portable
 -}
+{-# LANGUAGE BangPatterns #-}
 module Profile.Live.Server.Application.Bined(
     binedServer
   ) where 
 
 import Data.Colour.Names
 import Data.Colour.SRGB.Linear
+import Data.Foldable 
 import Data.Maybe 
 import Database.Persist.Sql
 import GHC.RTS.Events 
@@ -67,9 +69,9 @@ getFullBinedGraph i binWidth colThreads colGc colCustom = do
   return BinedGraph{..}
   where 
   getFirstEventTime = 
-    maybe 0 (fromIntegral . evTime) <$> getEventLogFirstEvent i
+    maybe 0 (fromTimestamp . evTime) <$> getEventLogFirstEvent i
   getLastEventTime =
-    maybe 0 (fromIntegral . evTime) <$> getEventLogLastEvent i
+    maybe 0 (fromTimestamp . evTime) <$> getEventLogLastEvent i
 
 -- | Get attached bin lines of event log
 --
@@ -94,16 +96,21 @@ getThreadLine :: Double -- ^ Time offset from begining
   -> SqlPersistT IO BinLine
 getThreadLine tOffset binWidth colour logId threadId = do 
   name <- maybe (showt threadId) T.pack <$> getThreadLabel logId threadId
-  offset <- getOffset
+  spawnTime <- getThreadSpawnTime logId threadId
+  let offset = calcOffset spawnTime
 
   es <- getThreadEvents logId threadId 
-  --foldl' collectBins VU.empty es
-  return undefined
+  let (_, _, _, !values) = foldl' collectBins (0, spawnTime, 0, VU.empty) es
+  return BinLine {
+      binLineName = name 
+    , binLineColour = colour 
+    , binLineOffset = offset 
+    , binLineValues = values 
+    }
   where 
-  getOffset = maybe 0 (toBinNumber tOffset binWidth . (subtract tOffset) . fromIntegral) <$> 
-    getThreadSpawnTime logId threadId
+  calcOffset = maybe 0 (toBinNumber tOffset binWidth . (subtract tOffset) . fromTimestamp)
   
-  collectBins bins e = case evSpec e of 
+  collectBins (!curBin, !stopT, !workT, !bins) e = case evSpec e of 
     RunThread{} -> undefined
     StopThread{} -> undefined
     _ -> undefined
@@ -114,3 +121,7 @@ toBinNumber :: Double -- ^ Offset from begining
   -> Double -- ^ time 
   -> Int 
 toBinNumber tOffset binWidth t = floor $ (t - tOffset) / binWidth
+
+-- | Convert timestamp to seconds
+fromTimestamp :: Timestamp -> Double 
+fromTimestamp = (/ 1000000) . fromIntegral
