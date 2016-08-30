@@ -29,6 +29,7 @@ import Servant.Swagger
 
 import qualified Data.ByteString.Lazy as BS 
 
+import Profile.Live.Server.API.Bined
 import Profile.Live.Server.API.Connection 
 import Profile.Live.Server.API.EventLog 
 import Profile.Live.Server.API.Session 
@@ -42,6 +43,7 @@ type CoreLiveProfileAPI =
        ConnectionAPI 
   :<|> SessionAPI
   :<|> EventLogAPI
+  :<|> BinedAPI
 
 -- | Helper to pass around 'LiveProfileAPI'
 liveProfileAPI :: Proxy LiveProfileAPI
@@ -67,3 +69,4 @@ generateSwagger path = BS.writeFile path . encode $ toSwagger documentedLiveProf
   & applyTagsFor connectionOperations ["Connection" & description ?~ "Connection to profiled app operations"]
   & applyTagsFor sessionOperations ["Session" & description ?~ "Session of a connection to profiled app"]
   & applyTagsFor eventLogOperations ["Event log" & description ?~ "Operations with raw events"]
+  & applyTagsFor binedOperations ["Bined graph" & description ?~ "Operations with bined graph for event log"]

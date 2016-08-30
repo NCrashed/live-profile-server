@@ -62,7 +62,7 @@ EventTypeImpl
 EventImpl
   eventLog EventLogImplId
   time Timestamp
-  spec EventInfoImpl
+  spec EventInfoImplId
   cap Int Maybe 
   deriving Show 
 
@@ -412,19 +412,20 @@ toCapsetTypeImpl c = case c of
   CapsetUnknown -> 3
 
 -- | Helper to convert to DB representation
-toEventImpl :: EventLogImplId -> Event -> EventImpl 
-toEventImpl i Event{..} = EventImpl {
-    eventImplEventLog = i
-  , eventImplTime = evTime 
-  , eventImplSpec = toEventInfoImpl evSpec
-  , eventImplCap = evCap
-  }
+toEventImpl :: EventLogImplId -> Event -> (EventInfoImpl, EventInfoImplId -> EventImpl)
+toEventImpl i Event{..} = (toEventInfoImpl evSpec
+  , \ei -> EventImpl {
+      eventImplEventLog = i
+    , eventImplTime = evTime 
+    , eventImplSpec = ei
+    , eventImplCap = evCap
+    })
 
 -- | Helper to convert from DB representation
-fromEventImpl :: EventImpl -> Maybe Event 
-fromEventImpl EventImpl{..} = Event 
+fromEventImpl :: EventImpl -> EventInfoImpl -> Maybe Event 
+fromEventImpl EventImpl{..} einfo = Event 
   <$> pure eventImplTime
-  <*> fromEventInfoImpl eventImplSpec
+  <*> fromEventInfoImpl einfo
   <*> pure eventImplCap
 
 -- | Helper to convert to DB representation
@@ -1097,6 +1098,253 @@ eventTypeNum e = case e of
     PerfName       {} -> EVENT_PERF_NAME
     PerfCounter    {} -> EVENT_PERF_COUNTER
     PerfTracepoint {} -> EVENT_PERF_TRACEPOINT
+
+createThreadEventType :: EventTypeNum
+createThreadEventType = EVENT_CREATE_THREAD
+
+runThreadEventType :: EventTypeNum
+runThreadEventType = EVENT_RUN_THREAD
+
+stopThreadEventType :: EventTypeNum
+stopThreadEventType = EVENT_STOP_THREAD
+
+threadRunnableEventType :: EventTypeNum
+threadRunnableEventType = EVENT_THREAD_RUNNABLE
+
+migrateThreadEventType :: EventTypeNum
+migrateThreadEventType = EVENT_MIGRATE_THREAD
+
+shutdownEventType :: EventTypeNum
+shutdownEventType = EVENT_SHUTDOWN
+
+wakeupThreadEventType :: EventTypeNum
+wakeupThreadEventType = EVENT_THREAD_WAKEUP
+
+threadLabelEventType :: EventTypeNum
+threadLabelEventType = EVENT_THREAD_LABEL
+
+startGCEventType :: EventTypeNum
+startGCEventType = EVENT_GC_START
+
+endGCEventType :: EventTypeNum
+endGCEventType = EVENT_GC_END
+
+globalSyncGCEventType :: EventTypeNum
+globalSyncGCEventType = EVENT_GC_GLOBAL_SYNC
+
+requestSeqGCEventType :: EventTypeNum
+requestSeqGCEventType = EVENT_REQUEST_SEQ_GC
+
+requestParGCEventType :: EventTypeNum
+requestParGCEventType = EVENT_REQUEST_PAR_GC
+
+createSparkThreadEventType :: EventTypeNum
+createSparkThreadEventType = EVENT_CREATE_SPARK_THREAD
+
+sparkCountersEventType :: EventTypeNum
+sparkCountersEventType = EVENT_SPARK_COUNTERS
+
+sparkCreateEventType :: EventTypeNum
+sparkCreateEventType = EVENT_SPARK_CREATE
+
+sparkDudEventType :: EventTypeNum
+sparkDudEventType = EVENT_SPARK_DUD
+
+sparkOverflowEventType :: EventTypeNum
+sparkOverflowEventType = EVENT_SPARK_OVERFLOW
+
+sparkRunEventType :: EventTypeNum
+sparkRunEventType = EVENT_SPARK_RUN
+
+sparkStealEventType :: EventTypeNum
+sparkStealEventType = EVENT_SPARK_STEAL
+
+sparkFizzleEventType :: EventTypeNum
+sparkFizzleEventType = EVENT_SPARK_FIZZLE
+
+sparkGCEventType :: EventTypeNum
+sparkGCEventType = EVENT_SPARK_GC
+
+taskCreateEventType :: EventTypeNum
+taskCreateEventType = EVENT_TASK_CREATE
+
+taskMigrateEventType :: EventTypeNum
+taskMigrateEventType = EVENT_TASK_MIGRATE
+
+taskDeleteEventType :: EventTypeNum
+taskDeleteEventType = EVENT_TASK_DELETE
+
+messageEventType :: EventTypeNum
+messageEventType = EVENT_LOG_MSG
+
+startupEventType :: EventTypeNum
+startupEventType = EVENT_STARTUP
+
+eventBlockEventType :: EventTypeNum
+eventBlockEventType = EVENT_BLOCK_MARKER
+
+userMessageEventType :: EventTypeNum
+userMessageEventType = EVENT_USER_MSG
+
+userMarkerEventType :: EventTypeNum
+userMarkerEventType = EVENT_USER_MARKER
+
+gCIdleEventType :: EventTypeNum
+gCIdleEventType = EVENT_GC_IDLE
+
+gCWorkEventType :: EventTypeNum
+gCWorkEventType = EVENT_GC_WORK
+
+gCDoneEventType :: EventTypeNum
+gCDoneEventType = EVENT_GC_DONE
+
+gCStatsGHCEventType :: EventTypeNum
+gCStatsGHCEventType = EVENT_GC_STATS_GHC
+
+heapAllocatedEventType :: EventTypeNum
+heapAllocatedEventType = EVENT_HEAP_ALLOCATED
+
+heapSizeEventType :: EventTypeNum
+heapSizeEventType = EVENT_HEAP_SIZE
+
+heapLiveEventType :: EventTypeNum
+heapLiveEventType = EVENT_HEAP_LIVE
+
+heapInfoGHCEventType :: EventTypeNum
+heapInfoGHCEventType = EVENT_HEAP_INFO_GHC
+
+capCreateEventType :: EventTypeNum
+capCreateEventType = EVENT_CAP_CREATE
+
+capDeleteEventType :: EventTypeNum
+capDeleteEventType = EVENT_CAP_DELETE
+
+capDisableEventType :: EventTypeNum
+capDisableEventType = EVENT_CAP_DISABLE
+
+capEnableEventType :: EventTypeNum
+capEnableEventType = EVENT_CAP_ENABLE
+
+capsetCreateEventType :: EventTypeNum
+capsetCreateEventType =  EVENT_CAPSET_CREATE
+
+capsetDeleteEventType :: EventTypeNum
+capsetDeleteEventType =  EVENT_CAPSET_DELETE
+
+capsetAssignCapEventType :: EventTypeNum
+capsetAssignCapEventType =  EVENT_CAPSET_ASSIGN_CAP
+
+capsetRemoveCapEventType :: EventTypeNum
+capsetRemoveCapEventType =  EVENT_CAPSET_REMOVE_CAP
+
+rtsIdentifierEventType :: EventTypeNum
+rtsIdentifierEventType = EVENT_RTS_IDENTIFIER
+
+programArgsEventType :: EventTypeNum
+programArgsEventType =  EVENT_PROGRAM_ARGS
+
+programEnvEventType :: EventTypeNum
+programEnvEventType =  EVENT_PROGRAM_ENV
+
+osProcessPidEventType :: EventTypeNum
+osProcessPidEventType = EVENT_OSPROCESS_PID
+
+osProcessParentPidEventType :: EventTypeNum
+osProcessParentPidEventType = EVENT_OSPROCESS_PPID
+
+wallClockTimeEventType :: EventTypeNum
+wallClockTimeEventType = EVENT_WALL_CLOCK_TIME
+
+internStringEventType :: EventTypeNum
+internStringEventType =  EVENT_INTERN_STRING
+
+versionEventType :: EventTypeNum
+versionEventType =  EVENT_VERSION
+
+programInvocationEventType :: EventTypeNum
+programInvocationEventType = EVENT_PROGRAM_INVOCATION
+
+edenStartReceiveEventType :: EventTypeNum
+edenStartReceiveEventType = EVENT_EDEN_START_RECEIVE
+
+edenEndReceiveEventType :: EventTypeNum
+edenEndReceiveEventType = EVENT_EDEN_END_RECEIVE
+
+createProcessEventType :: EventTypeNum
+createProcessEventType = EVENT_CREATE_PROCESS
+
+killProcessEventType :: EventTypeNum
+killProcessEventType = EVENT_KILL_PROCESS
+
+assignThreadToProcessEventType :: EventTypeNum
+assignThreadToProcessEventType = EVENT_ASSIGN_THREAD_TO_PROCESS
+
+createMachineEventType :: EventTypeNum
+createMachineEventType = EVENT_CREATE_MACHINE
+
+killMachineEventType :: EventTypeNum
+killMachineEventType = EVENT_KILL_MACHINE
+
+sendMessageEventType :: EventTypeNum
+sendMessageEventType = EVENT_SEND_MESSAGE
+
+receiveMessageEventType :: EventTypeNum
+receiveMessageEventType = EVENT_RECEIVE_MESSAGE
+
+sendReceiveLocalMessageEventType :: EventTypeNum
+sendReceiveLocalMessageEventType = EVENT_SEND_RECEIVE_LOCAL_MESSAGE
+
+merStartParConjunctionEventType :: EventTypeNum
+merStartParConjunctionEventType = EVENT_MER_START_PAR_CONJUNCTION
+
+merEndParConjunctionEventType :: EventTypeNum
+merEndParConjunctionEventType = EVENT_MER_STOP_PAR_CONJUNCTION
+
+merEndParConjunctEventType :: EventTypeNum
+merEndParConjunctEventType = EVENT_MER_STOP_PAR_CONJUNCT
+
+merCreateSparkEventType :: EventTypeNum
+merCreateSparkEventType = EVENT_MER_CREATE_SPARK
+
+merFutureCreateEventType :: EventTypeNum
+merFutureCreateEventType = EVENT_MER_FUT_CREATE
+
+merFutureWaitNosuspendEventType :: EventTypeNum
+merFutureWaitNosuspendEventType = EVENT_MER_FUT_WAIT_NOSUSPEND
+
+merFutureWaitSuspendedEventType :: EventTypeNum
+merFutureWaitSuspendedEventType = EVENT_MER_FUT_WAIT_SUSPENDED
+
+merFutureSignalEventType :: EventTypeNum
+merFutureSignalEventType = EVENT_MER_FUT_SIGNAL
+
+merLookingForGlobalThreadEventType :: EventTypeNum
+merLookingForGlobalThreadEventType = EVENT_MER_LOOKING_FOR_GLOBAL_CONTEXT
+
+merWorkStealingEventType :: EventTypeNum
+merWorkStealingEventType = EVENT_MER_WORK_STEALING
+
+merLookingForLocalSparkEventType :: EventTypeNum
+merLookingForLocalSparkEventType = EVENT_MER_LOOKING_FOR_LOCAL_SPARK
+
+merReleaseThreadEventType :: EventTypeNum
+merReleaseThreadEventType = EVENT_MER_RELEASE_CONTEXT
+
+merCapSleepingEventType :: EventTypeNum
+merCapSleepingEventType = EVENT_MER_ENGINE_SLEEPING
+
+merCallingMainEventType :: EventTypeNum
+merCallingMainEventType = EVENT_MER_CALLING_MAIN
+
+perfNameEventType :: EventTypeNum
+perfNameEventType = EVENT_PERF_NAME
+
+perfCounterEventType :: EventTypeNum
+perfCounterEventType = EVENT_PERF_COUNTER
+
+perfTracepointEventType :: EventTypeNum
+perfTracepointEventType = EVENT_PERF_TRACEPOINT
+
 
 -- | Helper to convert into DB representation
 toEventlogStateImpl :: EventLogImplId

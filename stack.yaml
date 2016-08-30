@@ -61,6 +61,10 @@ packages:
 - location:
     git: https://github.com/NCrashed/aeson-injector.git 
     commit: 2373eff0cabb67c2885b35e0b9c499dc9e36bdbc
+#- '../esqueleto'
+- location:
+    git: https://github.com/NCrashed/esqueleto.git
+    commit: 960c2f0d9ffa4e450240a7304d8ca4c6342dadc7
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)

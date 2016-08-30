@@ -75,4 +75,4 @@ connectionAPI = Proxy
 
 -- | Select only operations of the Connection API
 connectionOperations :: Traversal' Swagger Operation
-connectionOperations = operationsOf $ toSwagger (Proxy :: Proxy ConnectionAPI)
+connectionOperations = operationsOf $ toSwagger connectionAPI

@@ -19,6 +19,8 @@ module Profile.Live.Server.Application.EventLog(
   , readEventLogEventTypes
   , readEventLogStates
   , deleteEventLog
+  , getEventLogFirstEvent
+  , getEventLogLastEvent
   , eventLogServer
   ) where 
 
@@ -26,6 +28,7 @@ import Control.Monad
 import Data.Aeson.WithField
 import Data.Maybe 
 import Data.Monoid
+import Data.Text (Text)
 import Database.Persist.Sql 
 import GHC.RTS.Events as E 
 import Servant.API as S
@@ -34,7 +37,6 @@ import Servant.API.Auth.Token.Pagination
 import Servant.API.REST.Derive
 import Servant.Server 
 import Servant.Server.Auth.Token
-import Data.Text (Text)
 
 import qualified Data.Binary.Put as B
 
@@ -43,6 +45,8 @@ import Profile.Live.Server.API.EventLog
 import Profile.Live.Server.Events.Model
 import Profile.Live.Server.Monad 
 import Profile.Live.Server.Utils
+
+import Profile.Live.Server.Application.EventLog.Query
 
 -- | Implementation of eventl log sub API
 eventLogServer :: ServerT EventLogAPI App 
@@ -59,7 +63,11 @@ addEventLogType lid t = insert $ toEventTypeImpl lid t
 
 -- | Insert event into eventlog being recording
 addEventLogEvent :: EventLogImplId -> Event -> SqlPersistT IO EventImplId 
-addEventLogEvent lid e = insert $ toEventImpl lid e
+addEventLogEvent lid e = do
+  let (impl, mkInfo) = toEventImpl lid e
+  i <- insert impl 
+  ei <- insert $ mkInfo i 
+  return ei 
 
 -- | Insert state snapshot into eventlog being recording
 addEventLogState :: EventLogImplId -> EventlogState -> SqlPersistT IO EventlogStateImplId
@@ -79,8 +87,12 @@ addEventLogState lid s = do
 -- | Getting event from DB
 readEvent :: EventImplId -> SqlPersistT IO (Maybe Event)
 readEvent i = do 
-  mei <- get i
-  return . join $ fromEventImpl <$> mei
+  me <- get i
+  case me of 
+    Nothing -> return Nothing 
+    Just e -> do 
+      mei <- get $ eventImplSpec e
+      return $ fromEventImpl e =<< mei
 
 -- | Read event type from DB
 readEventType :: EventTypeImplId -> SqlPersistT IO (Maybe EventType)
@@ -107,12 +119,6 @@ readEventLogState i = do
     <*> pure css 
     <*> pure cs 
     <*> pure ts 
-
--- | Getting events from DB
-readEventLogEvents :: EventLogImplId -> SqlPersistT IO [Event]
-readEventLogEvents i = do 
-  es <- fmap entityVal <$> selectList [EventImplEventLog ==. i] [Asc EventImplTime]
-  return $ catMaybes $ fromEventImpl <$> es
 
 -- | Getting event types from DB
 readEventLogEventTypes :: EventLogImplId -> SqlPersistT IO [EventType]
@@ -151,7 +157,7 @@ listEvents ei mp msize token = do
           ]
     (es, total) <- runDB $ (,)
       <$> (do
-        (is :: [Key EventImpl]) <- selectKeysList filters [OffsetBy (fromIntegral $ page * size), LimitTo (fromIntegral size)]
+        (is :: [Key EventImpl]) <- selectKeysList filters [Asc EventImplTime, OffsetBy (fromIntegral $ page * size), LimitTo (fromIntegral size)]
         forM is $ (\i -> fmap (WithField (Id $ fromKey i)) <$> readEvent i))
       <*> count filters
     return PagedList {

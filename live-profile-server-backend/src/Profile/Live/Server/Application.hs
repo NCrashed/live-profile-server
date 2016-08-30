@@ -23,6 +23,7 @@ import Servant
 import Servant.Server.Auth.Token 
 
 import Profile.Live.Server.API
+import Profile.Live.Server.Application.Bined
 import Profile.Live.Server.Application.Connection
 import Profile.Live.Server.Application.EventLog
 import Profile.Live.Server.Application.Session
@@ -37,6 +38,7 @@ coreServer app = enter (convertApp app) server
          connectionServer
     :<|> sessionServer
     :<|> eventLogServer
+    :<|> binedServer
 
 -- | Implementation of documented server
 documentedServer :: AppState -> Server DocumentedLiveProfileAPI

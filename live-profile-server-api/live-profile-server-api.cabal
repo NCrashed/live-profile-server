@@ -19,15 +19,19 @@ library
   hs-source-dirs:      src
   exposed-modules:     
     Profile.Live.Server.API
+    Profile.Live.Server.API.Bined
     Profile.Live.Server.API.Connection
     Profile.Live.Server.API.EventLog
     Profile.Live.Server.API.Session
     Profile.Live.Server.Events
+    Profile.Live.Server.Utils.DeriveJson
+    Profile.Live.Server.Utils.Schema
   build-depends:       
       base                    >= 4.7      && < 5
     , aeson                   >= 0.11     && < 1.1
     , aeson-injector          >= 1.0.4    && < 1.1
     , bytestring              >= 0.10     && < 0.11
+    , colour                  >= 2.3      && < 2.4
     , ghc-events              >= 0.5      && < 0.6
     , lens                    >= 4.13     && < 4.15
     , servant                 >= 0.7      && < 0.8
@@ -37,6 +41,7 @@ library
     , swagger2                >= 2.0      && < 2.2
     , text                    >= 1.2      && < 1.3 
     , time                    >= 1.5      && < 1.7
+    , vector                  >= 0.11     && < 0.12
     , vinyl                   >= 0.5.2    && < 0.6
     
   default-language:    Haskell2010

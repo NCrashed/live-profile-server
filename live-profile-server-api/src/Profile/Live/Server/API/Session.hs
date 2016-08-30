@@ -93,4 +93,4 @@ sessionAPI = Proxy
 
 -- | Select only operations of the Session API
 sessionOperations :: Traversal' Swagger Operation
-sessionOperations = operationsOf $ toSwagger (Proxy :: Proxy SessionAPI)
+sessionOperations = operationsOf $ toSwagger sessionAPI

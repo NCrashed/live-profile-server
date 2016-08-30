@@ -67,7 +67,7 @@ eventLogAPI = Proxy
 
 -- | Select only operations of the Session API
 eventLogOperations :: Traversal' Swagger Operation
-eventLogOperations = operationsOf $ toSwagger (Proxy :: Proxy EventLogAPI)
+eventLogOperations = operationsOf $ toSwagger eventLogAPI
 
 deriving instance Generic CapsetType 
 instance ToJSON CapsetType 
