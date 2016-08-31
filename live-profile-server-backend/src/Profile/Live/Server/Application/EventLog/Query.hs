@@ -42,45 +42,76 @@ getEventLogThreads i = fmap (catMaybes . fmap unValue) $ do
 -- | Getting events from DB
 readEventLogEvents :: EventLogImplId -> SqlPersistT IO [Event]
 readEventLogEvents i = do 
-  es <- select $ from $ \(e `InnerJoin` ei) -> do
-    on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
-    orderBy [asc $ e ^. EventImplTime]
-    where_ (e ^. EventImplEventLog ==. val i)
-    return (e, ei)
-  return $ catMaybes $ (\(Entity _ e, Entity _ ei) -> fromEventImpl e ei) <$> es
+  (es :: [(Entity EventImpl, Entity EventInfoImpl)]) <- select $ 
+    from $ \(e `InnerJoin` ei) -> do
+      on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
+      orderBy [asc $ e ^. EventImplTime]
+      where_ (e ^. EventImplEventLog ==. val i)
+      return (e, ei)
+  return $ catMaybes $ uncurry fromEventEntityImpl <$> es
 
 -- | Getting first occured event from eventlog
 getEventLogFirstEvent :: EventLogId -> SqlPersistT IO (Maybe Event)
 getEventLogFirstEvent i = do 
-  es <- select $ from $ \(e `InnerJoin` ei) -> do
-    on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
-    orderBy [asc $ e ^. EventImplTime]
-    where_ (e ^. EventImplEventLog ==. val (toKey i))
-    limit 1
-    return (e, ei)
-  return $ join . headMay $ 
-    (\(Entity _ e, Entity _ ei) -> fromEventImpl e ei) <$> es
+  (es :: [(Entity EventImpl, Entity EventInfoImpl)]) <- select $ 
+    from $ \(e `InnerJoin` ei) -> do
+      on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
+      orderBy [asc $ e ^. EventImplTime]
+      where_ (e ^. EventImplEventLog ==. val (toKey i))
+      limit 1
+      return (e, ei)
+  return $ join . headMay $ uncurry fromEventEntityImpl <$> es
 
 -- | Getting last occured event from eventlog
 getEventLogLastEvent :: EventLogId -> SqlPersistT IO (Maybe Event)
 getEventLogLastEvent i = do 
-  es <- select $ from $ \(e `InnerJoin` ei) -> do
-    on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
-    orderBy [desc $ e ^. EventImplTime]
-    where_ (e ^. EventImplEventLog ==. val (toKey i))
-    limit 1
-    return (e, ei)
-  return $ join . headMay $ 
-    (\(Entity _ e, Entity _ ei) -> fromEventImpl e ei) <$> es
+  (es :: [(Entity EventImpl, Entity EventInfoImpl)]) <- select $ 
+    from $ \(e `InnerJoin` ei) -> do
+      on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
+      orderBy [desc $ e ^. EventImplTime]
+      where_ (e ^. EventImplEventLog ==. val (toKey i))
+      limit 1
+      return (e :: SqlExpr (Entity EventImpl), ei :: SqlExpr (Entity EventInfoImpl))
+  return $ join . headMay $ uncurry fromEventEntityImpl <$> es
 
 -- | Getting label of thread from eventlog
 getThreadLabel :: EventLogId -> ThreadId -> SqlPersistT IO (Maybe String)
-getThreadLabel = undefined
+getThreadLabel i tid = do
+  (vs :: [Value (Maybe String)]) <- select $ 
+    from $ \(e `InnerJoin` ei) -> do
+      on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
+      where_ (
+            e ^. EventImplEventLog ==. val (toKey i)
+        &&. ei ^. EventInfoImplThread ==. val (Just tid)
+        &&. ei ^. EventInfoImplThreadlabel !=. val Nothing)
+      limit 1
+      return (ei ^. EventInfoImplThreadlabel)
+  return $ join . headMay . fmap unValue $ vs
 
 -- | Get timestamp when the thread was spawned
 getThreadSpawnTime :: EventLogId -> ThreadId -> SqlPersistT IO (Maybe Timestamp)
-getThreadSpawnTime = undefined
+getThreadSpawnTime i tid = do
+  (vs :: [Value Timestamp]) <- select $ 
+    from $ \(e `InnerJoin` ei) -> do
+      on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
+      where_ (
+            e ^. EventImplEventLog ==. val (toKey i)
+        &&. ei ^. EventInfoImplThread ==. val (Just tid)
+        &&. ei ^. EventInfoImplType ==. val createThreadEventType)
+      limit 1
+      return (e ^. EventImplTime)
+  return $ headMay . fmap unValue $ vs
 
 -- | Get events related only to the particular thread
 getThreadEvents :: EventLogId -> ThreadId -> SqlPersistT IO [Event]
-getThreadEvents = undefined
+getThreadEvents i tid = do
+  (vs :: [(Entity EventImpl, Entity EventInfoImpl)]) <- select $ 
+    from $ \(e `InnerJoin` ei) -> do
+      on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
+      orderBy [asc $ e ^. EventImplTime]
+      where_ (
+            e ^. EventImplEventLog ==. val (toKey i)
+        &&. ei ^. EventInfoImplThread ==. val (Just tid))
+      limit 1
+      return (e, ei)
+  return $ catMaybes $ uncurry fromEventEntityImpl <$> vs

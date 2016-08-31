@@ -18,6 +18,7 @@ module Profile.Live.Server.Events.Model where
 #include "EventLogFormat.h"
 
 import Data.Word 
+import Database.Persist
 import Database.Persist.TH 
 
 import qualified Data.HashMap.Strict as H 
@@ -427,6 +428,10 @@ fromEventImpl EventImpl{..} einfo = Event
   <$> pure eventImplTime
   <*> fromEventInfoImpl einfo
   <*> pure eventImplCap
+
+-- | Helper same as 'fromEventImpl'
+fromEventEntityImpl :: Entity EventImpl -> Entity EventInfoImpl -> Maybe Event 
+fromEventEntityImpl (Entity _ e) (Entity _ ei) = fromEventImpl e ei 
 
 -- | Helper to convert to DB representation
 toEventTypeImpl :: EventLogImplId -> EventType -> EventTypeImpl 

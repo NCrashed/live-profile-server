@@ -22,6 +22,7 @@ import Servant.API.Auth.Token
 import Servant.Server 
 import Servant.Server.Auth.Token
 
+import qualified Data.Sequence as S 
 import qualified Data.Text as T 
 import qualified Data.Vector as V 
 import qualified Data.Vector.Unboxed as VU 
@@ -96,32 +97,68 @@ getThreadLine :: Double -- ^ Time offset from begining
   -> SqlPersistT IO BinLine
 getThreadLine tOffset binWidth colour logId threadId = do 
   name <- maybe (showt threadId) T.pack <$> getThreadLabel logId threadId
-  spawnTime <- getThreadSpawnTime logId threadId
-  let offset = calcOffset spawnTime
+  spawnTime <- fromMaybe 0 <$> getThreadSpawnTime logId threadId
+  let offset = calcOffset spawnTime 
 
   es <- getThreadEvents logId threadId 
-  let (_, _, _, !values) = foldl' collectBins (0, spawnTime, 0, VU.empty) es
+  let (_, _, _, _, !values) = foldl' collectBins (offset, spawnTime, 0, 0, mempty) es
   return BinLine {
       binLineName = name 
     , binLineColour = colour 
     , binLineOffset = offset 
-    , binLineValues = values 
+    , binLineValues = VU.fromList $ toList values 
     }
   where 
-  calcOffset = maybe 0 (toBinNumber tOffset binWidth . (subtract tOffset) . fromTimestamp)
+  calcOffset = toBinNumber tOffset binWidth . (subtract tOffset) . fromTimestamp
   
-  collectBins (!curBin, !stopT, !workT, !bins) e = case evSpec e of 
-    RunThread{} -> undefined
-    StopThread{} -> undefined
-    _ -> undefined
+  -- Traverse bins collecting times of work and idle
+  collectBins :: (Int, Timestamp, Double, Double, S.Seq Double) 
+    -> Event 
+    -> (Int, Timestamp, Double, Double, S.Seq Double)
+  collectBins (!curBin, !lastT, !stopT, !workT, !bins) e = (curBin', lastT', stopT', workT', bins')
+    where 
+    isNextBin = fromTimestamp (evTime e) >= toBinUpperBound tOffset binWidth curBin
+    curBin' = curBin + (if isNextBin then 1 else 0)
+    lastT' = evTime e 
+    bin = let v = workT / (stopT + workT) in if isNaN v then 0 else v
+    bins' = if isNextBin then bins S.|> bin else bins
+
+    stopT' = case evSpec e of
+      StopThread{} -> stopT + (if isNextBin 
+        then fromTimestamp (lastT' - lastT)
+        else 0)
+      _ -> stopT 
+    workT' = case evSpec e of
+      RunThread{} -> workT + (if isNextBin 
+        then fromTimestamp (lastT' - lastT)
+        else 0)
+      _ -> workT
 
 -- | Calculate bin number from time
 toBinNumber :: Double -- ^ Offset from begining
   -> Double -- ^ Width of bin
-  -> Double -- ^ time 
+  -> Double -- ^ time in seconds
   -> Int 
 toBinNumber tOffset binWidth t = floor $ (t - tOffset) / binWidth
+
+-- | Calculate upper time bound of bin
+toBinLowBound :: Double -- ^ Offset from begining
+  -> Double -- ^ Width of bin 
+  -> Int -- ^ Bin number
+  -> Double -- ^ Seconds
+toBinLowBound tOffset binWidth i = fromIntegral i * binWidth + tOffset
+
+-- | Calculate upper time bound of bin
+toBinUpperBound :: Double -- ^ Offset from begining
+  -> Double -- ^ Width of bin 
+  -> Int -- ^ Bin number
+  -> Double -- ^ Seconds
+toBinUpperBound tOffset binWidth i = toBinLowBound tOffset binWidth (i+1)
 
 -- | Convert timestamp to seconds
 fromTimestamp :: Timestamp -> Double 
 fromTimestamp = (/ 1000000) . fromIntegral
+
+-- | Convert seconds into timestamp
+toTimestamp :: Double -> Timestamp 
+toTimestamp = round . (* 1000000)
