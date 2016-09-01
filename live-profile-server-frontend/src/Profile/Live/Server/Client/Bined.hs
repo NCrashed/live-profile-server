@@ -106,6 +106,18 @@ mkBins labelOffset BinLine{..} = label ||| offset' ||| bins
   mkBin d = square 1 # fc (blend d (mkColour binLineColour) white)
   mkColour (RGB r g b) = rgb r g b 
 
+-- | Draw group of bined lines
+mkLineGroup :: Double -- ^ Offset for labels 
+  -> LineGroup 
+  -> Diagram B 
+mkLineGroup labelOffset LineGroup{..} 
+  | null lineGroupLines = mempty 
+  | otherwise = strutY 0.7 === label === strutY 0.5 === bins 
+  where 
+  labelText = T.toUpper lineGroupName
+  label = font "Georgia, serif" (fontSize 3 (D.text . unpack $ labelText))
+  bins = vcat $ V.toList $ mkBins labelOffset <$> lineGroupLines
+
 -- | Info about time line
 data TimeLine = TimeLine {
   timeStart :: Double 
@@ -152,9 +164,10 @@ binedDiagram graph = centerXY $ frame 0.2 $
   bins'
   where
   labelOffset = (/ 4) . fromIntegral . maximum 
-    $ T.length . binLineName <$> binedGraphLines graph
+    $ T.length . binLineName 
+    <$> (V.concat . V.toList . fmap lineGroupLines . binedGraphLines $ graph)
   tline' = mkTimeLine $ extractTimeLine graph
-  bins' = vcat $ V.toList $ mkBins labelOffset <$> binedGraphLines graph
+  bins' = vcat $ V.toList $ mkLineGroup labelOffset <$> binedGraphLines graph
 
 -- | Special widget for bined graph dedug
 binnedDiagramDebugWidget :: MonadWidget t m => m ()
@@ -170,14 +183,19 @@ binnedDiagramDebugWidget = mdo
   return ()
   where 
   bins = V.fromList [
-      BinLine "GC" (toRGB red) 0 $ VU.fromList $ take 50 $ cycle sample0
-    , BinLine "1" (toRGB blue) 0 $ VU.fromList $ take 50 $ cycle sample1
-    , BinLine "2" (toRGB blue) 7 $ VU.fromList $ take 10 $ cycle sample2
+      LineGroup "GC" (V.fromList [
+          BinLine "GC" (toRGB red) 0 $ VU.fromList $ take 50 $ cycle sample0
+        ])
+    , LineGroup "Thread Events" (V.fromList [
+        BinLine "1" (toRGB blue) 0 $ VU.fromList $ take 50 $ cycle sample1
+      , BinLine "2" (toRGB blue) 7 $ VU.fromList $ take 10 $ cycle sample2
+      ])
     ]
   sample0 = [0.0, 0.1, 0.1, 0.2, 0.0, 0.5, 0.8, 0.3, 0.1, 0.2, 0.0, 0.1, 0.1]
   sample1 = [0.5, 0.4, 0.3, 0.5, 0.9, 1.0, 1.0, 0.1, 0.4, 0.5, 0.7, 0.9, 0.4]
   sample2 = [0.5, 0.9, 1.0, 1.0, 0.1, 0.4, 0.5]
-  maxn = maximum $ VU.length . binLineValues  <$> bins
+  lineLengths = fmap (VU.length . binLineValues) . lineGroupLines <$> bins
+  maxn = maximum $ V.concat $ V.toList lineLengths
   graph = BinedGraph {
       binedGraphBegin = 0 
     , binedGraphEnd = 10 
