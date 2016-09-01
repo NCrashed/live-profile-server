@@ -90,14 +90,18 @@ getBinLines :: Double -- ^ Time offset from begining
   -> RGB Double -- ^ Color of gc line
   -> RGB Double -- ^ Color of custom line
   -> EventLogId -- ^ Id of log
-  -> SqlPersistT IO (V.Vector BinLine)
+  -> SqlPersistT IO (V.Vector LineGroup)
 getBinLines tOffset binWidth startT endT colThreads colGc colCustom i = do 
   gcline <- getGcLine tOffset binWidth startT endT colGc i
   clines <- getCustomLines tOffset binWidth colCustom i
   threads <- getEventLogThreads i
   tlines <- mapM (getThreadLine tOffset binWidth colThreads i) 
     $ V.fromList threads
-  return $ (gcline `V.cons` clines) V.++ tlines
+  return $ V.fromList [
+      LineGroup "GC Events" (V.singleton gcline)
+    , LineGroup "User Events" clines
+    , LineGroup "Thread Events" tlines
+    ]
 
 -- | Calculate workout of GC
 getGcLine :: Double -- ^ Time offset from begining 
@@ -109,7 +113,7 @@ getGcLine :: Double -- ^ Time offset from begining
   -> SqlPersistT IO BinLine
 getGcLine tOffset binWidth starT endT colour logId = do 
   let binsCount = ceiling $ (endT - starT) / binWidth
-  values <- VU.generateM binsCount $ calcBinM tOffset binWidth getter einterpret
+  values <- calcBinsM tOffset binWidth binsCount 0 getter einterpret
   values `deepseq` return BinLine {
       binLineName = "GC" 
     , binLineColour = colour 
@@ -194,7 +198,7 @@ getCustomLine tOffset binWidth colour name es =
     _ S.:> e -> fromTimestamp $ userEvTime e 
   offset = toBinNumber tOffset binWidth apeareTime 
   binsCount = ceiling $ (apeareTime - lastTime) / binWidth
-  values = VU.generate binsCount $ calcBin tOffset binWidth es einterpret
+  values = calcBins tOffset binWidth binsCount offset es einterpret
   einterpret e = case e of 
     UserEventStart t -> WorkoutWork t
     UserEventEnd t -> WorkoutStop t
@@ -214,8 +218,7 @@ getThreadLine tOffset binWidth colour logId threadId = do
   
   let offset = toBinNumber tOffset binWidth  spawnTime 
   let binsCount = ceiling $ (dieTime - spawnTime) / binWidth
-  values <- VU.generateM binsCount $ calcBinM tOffset binWidth getter einterpret
-    . (offset +)
+  values <- calcBinsM tOffset binWidth binsCount offset getter einterpret
 
   values `deepseq` return BinLine {
       binLineName = name 
@@ -238,19 +241,57 @@ data WorkoutCase =
   | WorkoutNone
   deriving (Eq)
 
+-- | Helper that calculates all bins in once
+calcBinsM :: Foldable f => Double -- ^ Time offset 
+  -> Double -- ^ Bin width in seconds
+  -> Int -- ^ Bins count
+  -> Int -- ^ Bins offset
+  -> (Timestamp -> Timestamp -> SqlPersistT IO (f a)) 
+  -- ^ Getter of events during period
+  -> (a -> WorkoutCase) -- ^ Interpreter of events
+  -> SqlPersistT IO (VU.Vector Double) 
+calcBinsM tOffset binWidth binsCount offset getter einterpret = do
+  (_ , values) <- foldlM go (False, mempty) $ (+offset) <$> [0 .. binsCount-1]
+  return $ VU.fromList $ toList values
+  where 
+  go :: (Bool, S.Seq Double) -> Int -> SqlPersistT IO (Bool, S.Seq Double)
+  go (!begRun, !bins) i = do 
+    (endRun, !b) <- calcBinM tOffset binWidth getter einterpret begRun i
+    return (endRun, bins S.|> b)
+
+-- | Helper that calculates all bins in once
+calcBins :: Foldable f => Double -- ^ Time offset 
+  -> Double -- ^ Bin width in seconds
+  -> Int -- ^ Bins count
+  -> Int -- ^ Bins offset
+  -> f a
+  -- ^ Getter of events during period
+  -> (a -> WorkoutCase) -- ^ Interpreter of events
+  -> VU.Vector Double
+calcBins tOffset binWidth binsCount offset es einterpret = VU.fromList $ toList values
+  where 
+  (_ , values) = foldl' go (False, mempty) $ (+offset) <$> [0 .. binsCount-1]
+  go :: (Bool, S.Seq Double) -> Int -> (Bool, S.Seq Double)
+  go (!begRun, !bins) i = let
+    (endRun, !b) = calcBin tOffset binWidth es einterpret begRun i
+    in (endRun, bins S.|> b)
+
 -- | Calculate workout during a bin
 calcBinM :: Foldable f => Double -- ^ Time offset 
   -> Double -- ^ Bin width in seconds
   -> (Timestamp -> Timestamp -> SqlPersistT IO (f a)) 
   -- ^ Getter of events during period
   -> (a -> WorkoutCase) -- ^ Interpreter of events
+  -> Bool -- ^ Does the thread/event is running at begining of bin
   -> Int -- ^ Bin number
-  -> SqlPersistT IO Double
-calcBinM tOffset binWidth getter einterpret i = do 
+  -> SqlPersistT IO (Bool, Double) 
+  -- ^ Is the thread is not finished work at the end of bin 
+  -- and workout value from 0 to 1
+calcBinM tOffset binWidth getter einterpret begRun i = do 
   let startT = toTimestamp $ toBinLowBound tOffset binWidth i 
   let endT = toTimestamp $ toBinUpperBound tOffset binWidth i 
   es <- getter startT endT 
-  return $ calcBin tOffset binWidth es einterpret i
+  return $ calcBin tOffset binWidth es einterpret begRun i
 
 -- | Calculate workout during a bin
 calcBin :: forall f a . Foldable f 
@@ -259,23 +300,27 @@ calcBin :: forall f a . Foldable f
   -> f a -- ^ Sequence of events
   -- ^ Getter of events during period
   -> (a -> WorkoutCase) -- ^ Interpreter of events
+  -> Bool -- ^ Does the thread/event is running at begining of bin
   -> Int -- ^ Bin number
-  -> Double -- ^ Workout value from 0 to 1
-calcBin tOffset binWidth es einterpret i = if isNaN workout 
-  then 0 else workout 
+  -> (Bool, Double) 
+  -- ^ Is the thread is not finished work at the end of bin 
+  -- and workout value from 0 to 1
+calcBin tOffset binWidth es einterpret begRun i = (endRun, workout)
   where 
   startT = toTimestamp $ toBinLowBound tOffset binWidth i 
-  (_, stopT, workT) = foldl' collectTime (startT, 0, 0) es
-  workout = workT / (stopT + workT)
-
+  (_, endRun, stopT, workT) = foldl' collectTime (startT, begRun, 0, 0) es
+  workout' = if begRun && null es 
+    then 1.0
+    else workT / (stopT + workT)
+  workout = if isNaN workout' then 0 else workout'
   -- | Collect work and stop times
-  collectTime :: (Timestamp, Double, Double)
+  collectTime :: (Timestamp, Bool, Double, Double)
     -> a 
-    -> (Timestamp, Double, Double)
-  collectTime (!lastT, !stopT, !workT) e = case einterpret e of 
-    WorkoutWork t -> (t, stopT + dt t, workT)
-    WorkoutStop t -> (t, stopT, workT + dt t)
-    WorkoutNone -> (lastT, stopT, workT)
+    -> (Timestamp, Bool, Double, Double)
+  collectTime (!lastT, !begRun, !stopT, !workT) e = case einterpret e of 
+    WorkoutWork t -> (t, True, stopT + dt t, workT)
+    WorkoutStop t -> (t, False, stopT, workT + dt t)
+    WorkoutNone -> (lastT, begRun, stopT, workT)
     where 
     dt t = fromTimestamp (t - lastT)
 

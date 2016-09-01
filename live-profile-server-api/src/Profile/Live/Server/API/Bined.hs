@@ -11,6 +11,7 @@ Portability : Portable
 {-# LANGUAGE StandaloneDeriving #-}
 module Profile.Live.Server.API.Bined(
     BinedGraph(..)
+  , LineGroup(..)
   , BinLine(..)
   -- * API 
   , BinedAPI 
@@ -55,6 +56,9 @@ instance Show a => ToHttpApiData (RGB a) where
   toQueryParam = T.pack . show 
 
 -- | Single swimline of bined graph
+--
+-- Single line is corresponding to user event
+-- or to a thread or to a GC workout.
 data BinLine = BinLine {
   binLineName :: !Text -- ^ Name of thread
 , binLineColour :: !(RGB Double) -- ^ Color of bins
@@ -70,12 +74,24 @@ instance ToSchema BinLine where
   declareNamedSchema = genericDeclareNamedSchema $
     schemaOptionsDropPrefix "binLine"
 
+-- | Bined lines are grouped under a name
+data LineGroup = LineGroup {
+  lineGroupName :: !Text -- ^ Name of group
+, lineGroupLines :: !(V.Vector BinLine)
+} deriving (Show, Generic)
+
+$(deriveJSON (derivePrefix "lineGroup") ''LineGroup)
+
+instance ToSchema LineGroup where 
+  declareNamedSchema = genericDeclareNamedSchema $
+    schemaOptionsDropPrefix "lineGroup"
+
 -- | Data to draw bined graph
 data BinedGraph = BinedGraph {
   binedGraphBegin :: !Double -- ^ Begin time of graph
 , binedGraphEnd :: !Double -- ^ End time of graph
 , binedGraphBinWidth :: !Double -- ^ Time width of bin
-, binedGraphLines :: !(V.Vector BinLine) -- ^ Array of lines corresponding to thread
+, binedGraphLines :: !(V.Vector LineGroup) -- ^ Array of groups of lines
 } deriving (Show, Generic)
 
 $(deriveJSON (derivePrefix "binedGraph") ''BinedGraph)
