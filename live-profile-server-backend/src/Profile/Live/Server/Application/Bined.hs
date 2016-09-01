@@ -67,7 +67,7 @@ getFullBinedGraph i mbinWidth colThreads colGc colCustom = do
   let defaultWidth = (binedGraphEnd - binedGraphBegin) / fromIntegral (50 :: Int)
   let binedGraphBinWidth = fromMaybe defaultWidth mbinWidth
   binedGraphLines <- getBinLines binedGraphBegin binedGraphBinWidth 
-    colThreads colGc colCustom i
+    binedGraphBegin binedGraphEnd colThreads colGc colCustom i
   return BinedGraph{..}
   where 
   getFirstEventTime = 
@@ -80,14 +80,43 @@ getFullBinedGraph i mbinWidth colThreads colGc colCustom = do
 -- Each bin line is associated with thread or user event.
 getBinLines :: Double -- ^ Time offset from begining 
   -> Double -- ^ Bin width in seconds
+  -> Double -- ^ Start time
+  -> Double -- ^ End time
   -> RGB Double -- ^ Color of thread lines
   -> RGB Double -- ^ Color of gc line
   -> RGB Double -- ^ Color of custom line
   -> EventLogId -- ^ Id of log
   -> SqlPersistT IO (V.Vector BinLine)
-getBinLines tOffset binWidth colThreads colGc colCustom i = do 
+getBinLines tOffset binWidth startT endT colThreads colGc colCustom i = do 
+  gcline <- getGcLine tOffset binWidth startT endT colGc i
   threads <- getEventLogThreads i
-  mapM (getThreadLine tOffset binWidth colThreads i) $ V.fromList threads
+  tlines <- mapM (getThreadLine tOffset binWidth colThreads i) 
+    $ V.fromList threads
+  return $ gcline `V.cons` tlines
+
+-- | Calculate workout of GC
+getGcLine :: Double -- ^ Time offset from begining 
+  -> Double -- ^ Bin width in seconds
+  -> Double -- ^ Start time
+  -> Double -- ^ End time
+  -> RGB Double -- ^ Color of line
+  -> EventLogId -- ^ Event log id
+  -> SqlPersistT IO BinLine
+getGcLine tOffset binWidth starT endT colour logId = do 
+  let binsCount = ceiling $ (endT - starT) / binWidth
+  values <- VU.generateM binsCount $ calcBin tOffset binWidth getter einterpret
+  values `deepseq` return BinLine {
+      binLineName = "GC" 
+    , binLineColour = colour 
+    , binLineOffset = 0 
+    , binLineValues = values 
+    }
+  where 
+  getter = getGcEventsInPeriod logId
+  einterpret e = case evSpec e of 
+    StartGC{} -> WorkoutWork
+    EndGC{} -> WorkoutStop
+    _ -> WorkoutNone
 
 -- | Get bin line about particular thread from eventlog 
 getThreadLine :: Double -- ^ Time offset from begining 
@@ -103,7 +132,8 @@ getThreadLine tOffset binWidth colour logId threadId = do
   
   let offset = toBinNumber tOffset binWidth  spawnTime 
   let binsCount = ceiling $ (dieTime - spawnTime) / binWidth
-  values <- VU.generateM binsCount $ calcBin . (offset +)
+  values <- VU.generateM binsCount $ calcBin tOffset binWidth getter einterpret
+    . (offset +)
 
   values `deepseq` return BinLine {
       binLineName = name 
@@ -111,25 +141,45 @@ getThreadLine tOffset binWidth colour logId threadId = do
     , binLineOffset = offset 
     , binLineValues = values 
     }
-  where   
-  -- | Calculate workout in time bin
-  calcBin :: Int -> SqlPersistT IO Double
-  calcBin i = do 
-    let startT = toTimestamp $ toBinLowBound tOffset binWidth i 
-    let endT = toTimestamp $ toBinUpperBound tOffset binWidth i 
-    es <- getThreadEventsInPeriod logId threadId startT endT
-    let (_, stopT, workT) = foldl' collectTime (startT, 0, 0) es
-    let workout = workT / (stopT + workT)
-    return $ if isNaN workout then 0 else workout
+  where 
+  getter = getThreadEventsInPeriod logId threadId
+  einterpret e = case evSpec e of 
+    StopThread{} -> WorkoutWork
+    RunThread{} -> WorkoutStop
+    _ -> WorkoutNone
 
+-- | Helper for 'calcBin' to select wether event increments work time
+-- or stop time or neither of them.
+data WorkoutCase = 
+    WorkoutWork
+  | WorkoutStop
+  | WorkoutNone
+  deriving (Eq)
+
+-- | Calculate workout during a bin
+calcBin :: Double -- ^ Time offset 
+  -> Double -- ^ Bin width in seconds
+  -> (Timestamp -> Timestamp -> SqlPersistT IO [Event]) 
+  -- ^ Getter of events during period
+  -> (Event -> WorkoutCase) -- ^ Interpreter of events
+  -> Int -- ^ Bin number
+  -> SqlPersistT IO Double
+calcBin tOffset binWidth getter einterpret i = do 
+  let startT = toTimestamp $ toBinLowBound tOffset binWidth i 
+  let endT = toTimestamp $ toBinUpperBound tOffset binWidth i 
+  es <- getter startT endT
+  let (_, stopT, workT) = foldl' collectTime (startT, 0, 0) es
+  let workout = workT / (stopT + workT)
+  return $ if isNaN workout then 0 else workout
+  where 
   -- | Collect work and stop times
   collectTime :: (Timestamp, Double, Double)
     -> Event 
     -> (Timestamp, Double, Double)
-  collectTime (!lastT, !stopT, !workT) e = case evSpec e of 
-    StopThread{} -> (evTime e, stopT + dt, workT)
-    RunThread{} -> (evTime e, stopT, workT + dt)
-    _ -> (lastT, stopT, workT)
+  collectTime (!lastT, !stopT, !workT) e = case einterpret e of 
+    WorkoutWork -> (evTime e, stopT + dt, workT)
+    WorkoutStop -> (evTime e, stopT, workT + dt)
+    WorkoutNone -> (lastT, stopT, workT)
     where 
     dt = fromTimestamp (evTime e - lastT)
 

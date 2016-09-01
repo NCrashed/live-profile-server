@@ -17,6 +17,8 @@ module Profile.Live.Server.Application.EventLog.Query(
   , getThreadLastTime
   , getThreadEvents
   , getThreadEventsInPeriod
+  , getGcEvents 
+  , getGcEventsInPeriod
   ) where 
 
 import Control.Monad 
@@ -144,6 +146,38 @@ getThreadEventsInPeriod i tid startT endT = do
       where_ (
             e ^. EventImplEventLog ==. val (toKey i)
         &&. ei ^. EventInfoImplThread ==. val (Just tid)
+        &&. e ^. EventImplTime >=. val startT
+        &&. e ^. EventImplTime <. val endT)
+      return (e, ei)
+  return $ catMaybes $ uncurry fromEventEntityImpl <$> vs
+
+-- | Getting all GC events 
+getGcEvents :: EventLogId -- ^ Id of log
+  -> SqlPersistT IO [Event]
+getGcEvents i = do 
+  (vs :: [(Entity EventImpl, Entity EventInfoImpl)]) <- select $ 
+    from $ \(e `InnerJoin` ei) -> do
+      on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
+      orderBy [asc $ e ^. EventImplTime]
+      where_ (
+            e ^. EventImplEventLog ==. val (toKey i)
+        &&. ei ^. EventInfoImplType `in_` valList gcEventTypes)
+      return (e, ei)
+  return $ catMaybes $ uncurry fromEventEntityImpl <$> vs
+
+-- | Getting all GC events in given period of time
+getGcEventsInPeriod :: EventLogId -- ^ Id of log
+  -> Timestamp -- ^ Begin timestamp [including]
+  -> Timestamp -- ^ End timestamp [not including]
+  -> SqlPersistT IO [Event]
+getGcEventsInPeriod i startT endT = do
+  (vs :: [(Entity EventImpl, Entity EventInfoImpl)]) <- select $ 
+    from $ \(e `InnerJoin` ei) -> do
+      on (e ^. EventImplSpec ==. ei ^. EventInfoImplId)
+      orderBy [asc $ e ^. EventImplTime]
+      where_ (
+            e ^. EventImplEventLog ==. val (toKey i)
+        &&. ei ^. EventInfoImplType `in_` valList gcEventTypes
         &&. e ^. EventImplTime >=. val startT
         &&. e ^. EventImplTime <. val endT)
       return (e, ei)

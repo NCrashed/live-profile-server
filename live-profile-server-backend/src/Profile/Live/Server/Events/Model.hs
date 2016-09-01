@@ -1350,6 +1350,19 @@ perfCounterEventType = EVENT_PERF_COUNTER
 perfTracepointEventType :: EventTypeNum
 perfTracepointEventType = EVENT_PERF_TRACEPOINT
 
+-- | Types of events that are related to GC
+gcEventTypes :: [EventTypeNum]
+gcEventTypes = [
+    startGCEventType
+  , endGCEventType
+  , globalSyncGCEventType
+  , requestSeqGCEventType
+  , requestParGCEventType
+  , sparkGCEventType
+  , gCIdleEventType
+  , gCWorkEventType
+  , gCDoneEventType
+  , gCStatsGHCEventType ]
 
 -- | Helper to convert into DB representation
 toEventlogStateImpl :: EventLogImplId
