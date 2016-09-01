@@ -24,6 +24,8 @@ module Profile.Live.Server.Monad(
   , modifySessions
   -- ** Logger helpers
   , getLogger
+  , appLog
+  , showl
   -- ** DB helpers
   , runDB 
   , runDB404
@@ -34,6 +36,7 @@ module Profile.Live.Server.Monad(
   ) where
 
 import Control.Concurrent                   (ThreadId)
+import Control.Monad.Catch
 import Control.Monad.Except                 (ExceptT, MonadError, runExceptT)
 import Control.Monad.State.Strict as S
 import Data.Maybe
@@ -98,7 +101,7 @@ initAppState cfg@Config{..} = do
 newtype App a = App { 
     runApp :: StateT AppState (ExceptT ServantErr IO) a
   } deriving ( Functor, Applicative, Monad, MonadState AppState,
-               MonadError ServantErr, MonadIO)
+               MonadError ServantErr, MonadIO, MonadThrow, MonadCatch)
 
 instance AuthMonad App where 
   getAuthConfig = gets appAuth
@@ -172,6 +175,16 @@ modifySessions f = modify' (\ st -> st { appSessions = f $ appSessions st })
 -- | Retrieve application logger from current state
 getLogger :: App LoggerSet
 getLogger = gets appLogger
+
+-- | Log a message to logger
+appLog :: LogStr -> App ()
+appLog msg = do
+  logger <- gets appLogger 
+  liftIO $ pushLogStr logger msg 
+
+-- | Helper to transform type into log message
+showl :: Show a => a -> LogStr 
+showl = toLogStr . show 
 
 -- | Helper that implements pagination logic
 pagination :: Maybe Page -- ^ Parameter of page

@@ -7,6 +7,7 @@ Maintainer  : ncrashed@gmail.com
 Stability   : experimental
 Portability : Portable
 -}
+{-# LANGUAGE BangPatterns #-}
 module Profile.Live.Server.Application.EventLog(
     startEventLog
   , addEventLogType
@@ -21,6 +22,8 @@ module Profile.Live.Server.Application.EventLog(
   , deleteEventLog
   , getEventLogFirstEvent
   , getEventLogLastEvent
+  , importEventLog
+  , parseEventLog
   , eventLogServer
   ) where 
 
@@ -39,6 +42,8 @@ import Servant.Server
 import Servant.Server.Auth.Token
 
 import qualified Data.Binary.Put as B
+import qualified Data.ByteString.Lazy as B 
+import qualified GHC.RTS.EventsIncremental as E 
 
 import Profile.Live.Protocol.State
 import Profile.Live.Server.API.EventLog
@@ -182,3 +187,31 @@ downloadEventLog i {-token-} = do
 deleteEventLog :: EventLogImplId -- ^ Id of log
   -> SqlPersistT IO ()
 deleteEventLog = deleteCascade
+
+-- | Import raw event log from memory and create a fake session for it
+importEventLog :: EventLog -> SqlPersistT IO EventLogId
+importEventLog (EventLog (E.Header types) (Data es)) = do 
+  i <- insert EventLogImpl
+  mapM_ (void . addEventLogType i) types
+  mapM_ (void . addEventLogEvent i) es
+  return $ fromKey i 
+
+-- | Parse eventlog from memory, allow partial logs
+parseEventLog :: B.ByteString -> Either String EventLog 
+parseEventLog bs = let 
+  parser = E.newParserState `E.pushBytes` (B.toStrict bs)
+  in case go False [] parser of 
+    Left s -> Left s 
+    Right (es, parser') -> case E.readHeader parser' of 
+      Nothing -> Left "Missing header"
+      Just h -> Right $ EventLog h (Data es)
+  where 
+  go !incomplete !acc !parser = let 
+    (res, parser') = E.readEvent parser 
+    in case res of 
+      E.Item a -> go False (a : acc) parser'
+      E.Incomplete -> if incomplete 
+        then Right (reverse acc, parser') 
+        else go True acc parser'
+      E.Complete -> Right (reverse acc, parser')
+      E.ParseError err -> Left err

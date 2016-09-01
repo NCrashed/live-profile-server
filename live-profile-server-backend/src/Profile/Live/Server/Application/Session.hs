@@ -12,6 +12,7 @@ module Profile.Live.Server.Application.Session(
   -- * Helpers
   , getRunningSessions
   , sanitizeSessions
+  , importFakeSession
   ) where
 
 import Control.Lens 
@@ -42,7 +43,7 @@ import System.Socket.Family.Inet6
 import System.Socket.Protocol.TCP
 import System.Socket.Type.Stream
 
-import qualified Data.HashMap.Strict as H 
+import qualified Data.HashMap.Strict as H
 
 import Profile.Live.Client
 import Profile.Live.Server.API.Connection
@@ -264,3 +265,21 @@ deleteSession i = do
 
       deleteEventLog $ toKey logi
       deleteResource i 
+
+-- | Importing a eventlog for connection with creation of fake session
+importFakeSession :: Id Connection -> EventLog -> SqlPersistT IO (Id Session)
+importFakeSession cid elog = do 
+  -- Import eventlog
+  el <- importEventLog elog
+
+  -- Construct fake session 
+  t <- liftIO getCurrentTime
+  let sess :: Session 
+      sess = Field cid
+          :& Field t 
+          :& Field (Just t) 
+          :& Field el
+          :& Field Nothing
+          :& RNil
+  VKey sessId <- insert sess 
+  return sessId 

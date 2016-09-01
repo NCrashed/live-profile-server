@@ -9,6 +9,7 @@ Portability : Portable
 -}
 module Profile.Live.Server.Config(
     Config(..)
+  , ImportConfig(..)
   , Environment(..)
   , setLogger
   , makePool
@@ -39,6 +40,18 @@ data Environment =
 
 $(deriveJSON defaultOptions ''Environment)
 
+-- | Sub configuration for importing event log files
+data ImportConfig = ImportConfig {
+  -- | Folder from which take event log
+  importConfigFolder :: FilePath 
+  -- | Folder where to place successfully imported logs
+, importConfigSuccess :: FilePath
+  -- | Folder where to place unsuccessfully imported logs
+, importConfigFailure :: FilePath
+} deriving (Generic, Show, Eq, Read)
+
+$(deriveJSON (derivePrefix "importConfig") ''ImportConfig)
+
 -- | The Config of server application that contains all required info to start a 
 -- SQL connection pool and tweakable behavior.
 data Config = Config {
@@ -54,6 +67,8 @@ data Config = Config {
 , configPort :: Word 
 -- | Default page size for paged output
 , configPageSize :: Word 
+-- | Configuration of eventlog import
+, configImport :: ImportConfig 
 } deriving (Generic)
 
 $(deriveJSON (derivePrefix "config") ''Config)

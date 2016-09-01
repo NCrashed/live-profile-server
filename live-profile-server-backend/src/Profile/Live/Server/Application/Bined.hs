@@ -12,7 +12,6 @@ module Profile.Live.Server.Application.Bined(
     binedServer
   ) where 
 
-import Control.Applicative 
 import Control.DeepSeq 
 import Data.Colour.Names
 import Data.Colour.SRGB.Linear
@@ -163,10 +162,9 @@ splitCustomEvents = foldl' go mempty
   go !m !e = case evSpec e of 
     UserMessage{..} -> case L.stripPrefix "START " msg of
       Just name -> addEvent name UserEventStart
-      Nothing -> m 
-    UserMessage{..} -> case L.stripPrefix "END " msg of
-      Just name -> addEvent name UserEventEnd
-      Nothing -> m 
+      Nothing -> case L.stripPrefix "END " msg of
+        Just name -> addEvent name UserEventEnd
+        Nothing -> m
     _ -> m
     where 
     addEvent name mkEventType = case H.lookup name m of 
@@ -317,10 +315,10 @@ calcBin tOffset binWidth es einterpret begRun i = (endRun, workout)
   collectTime :: (Timestamp, Bool, Double, Double)
     -> a 
     -> (Timestamp, Bool, Double, Double)
-  collectTime (!lastT, !begRun, !stopT, !workT) e = case einterpret e of 
-    WorkoutWork t -> (t, True, stopT + dt t, workT)
-    WorkoutStop t -> (t, False, stopT, workT + dt t)
-    WorkoutNone -> (lastT, begRun, stopT, workT)
+  collectTime (!lastT, !br, !st, !wt) e = case einterpret e of 
+    WorkoutWork t -> (t, True, st + dt t, wt)
+    WorkoutStop t -> (t, False, st, wt + dt t)
+    WorkoutNone -> (lastT, br, st, wt)
     where 
     dt t = fromTimestamp (t - lastT)
 

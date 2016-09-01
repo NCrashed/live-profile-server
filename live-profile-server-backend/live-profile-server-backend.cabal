@@ -52,9 +52,13 @@ library
     , colour                      >= 2.3      && < 2.4
     , containers                  >= 0.5      && < 0.6
     , deepseq                     >= 1.4      && < 1.5
+    , directory                   >= 1.2      && < 1.3
+    , directory-tree              >= 0.12     && < 0.13
     , esqueleto                   >= 2.4.3    && < 2.5
+    , exceptions                  >= 0.8      && < 0.9
     , fast-logger                 >= 2.4      && < 2.5
     , file-embed                  >= 0.0.10   && < 0.1
+    , filepath                    >= 1.4      && < 1.5
     , ghc-events                  >= 0.5      && < 0.6
     , lens                        >= 4.14     && < 4.15
     , live-profile-client         >= 0.2      && < 0.3

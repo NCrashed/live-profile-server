@@ -16,6 +16,11 @@ auth:
   passwordMinLength: 8
   pageSize: 50
 
+import: 
+  folder: "./import"
+  success: "./import/success"
+  failure: "./import/failure"
+
 static: "./static/"
 port: 3000
 pageSize: 50
