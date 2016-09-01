@@ -12,6 +12,7 @@ module Profile.Live.Server.Application.Bined(
     binedServer
   ) where 
 
+import Control.DeepSeq 
 import Data.Colour.Names
 import Data.Colour.SRGB.Linear
 import Data.Foldable 
@@ -22,7 +23,6 @@ import Servant.API.Auth.Token
 import Servant.Server 
 import Servant.Server.Auth.Token
 
-import qualified Data.Sequence as S 
 import qualified Data.Text as T 
 import qualified Data.Vector as V 
 import qualified Data.Vector.Unboxed as VU 
@@ -31,7 +31,7 @@ import Profile.Live.Server.API.Bined
 import Profile.Live.Server.API.EventLog
 import Profile.Live.Server.Application.EventLog
 import Profile.Live.Server.Application.EventLog.Query
-import Profile.Live.Server.Application.Bined.Model
+--import Profile.Live.Server.Application.Bined.Model
 import Profile.Live.Server.Monad 
 import Profile.Live.Server.Utils
 
@@ -52,20 +52,21 @@ fullBinedGraph i bw mcolThreads mcolGc mcolCustom token = do
   let colThreads = fromMaybe (toRGB blue) mcolThreads
   let colGc = fromMaybe (toRGB red) mcolGc
   let colCustom = fromMaybe (toRGB green) mcolCustom
-  runDB $ getFullBinedGraph i (fromMaybe 60 bw) colThreads colGc colCustom
+  runDB $ getFullBinedGraph i bw colThreads colGc colCustom
 
 -- | Get full bined graph for event log
 getFullBinedGraph :: EventLogId 
-  -> Double -- ^ Bin width in seconds
+  -> Maybe Double -- ^ Bin width in seconds, if Nothing it is calculated automatically
   -> RGB Double -- ^ Color of thread lines
   -> RGB Double -- ^ Color of gc line
   -> RGB Double -- ^ Color of custom line
   -> SqlPersistT IO BinedGraph
-getFullBinedGraph i binWidth colThreads colGc colCustom = do 
+getFullBinedGraph i mbinWidth colThreads colGc colCustom = do 
   binedGraphBegin <- getFirstEventTime
   binedGraphEnd <- getLastEventTime
-  let binedGraphBinWidth = binWidth
-  binedGraphLines <- getBinLines binedGraphBegin binWidth 
+  let defaultWidth = (binedGraphEnd - binedGraphBegin) / fromIntegral (50 :: Int)
+  let binedGraphBinWidth = fromMaybe defaultWidth mbinWidth
+  binedGraphLines <- getBinLines binedGraphBegin binedGraphBinWidth 
     colThreads colGc colCustom i
   return BinedGraph{..}
   where 
@@ -97,42 +98,40 @@ getThreadLine :: Double -- ^ Time offset from begining
   -> SqlPersistT IO BinLine
 getThreadLine tOffset binWidth colour logId threadId = do 
   name <- maybe (showt threadId) T.pack <$> getThreadLabel logId threadId
-  spawnTime <- fromMaybe 0 <$> getThreadSpawnTime logId threadId
-  let offset = calcOffset spawnTime 
+  spawnTime <- maybe 0 fromTimestamp <$> getThreadSpawnTime logId threadId
+  dieTime <- maybe 0 fromTimestamp <$> getThreadLastTime logId threadId 
+  
+  let offset = toBinNumber tOffset binWidth  spawnTime 
+  let binsCount = ceiling $ (dieTime - spawnTime) / binWidth
+  values <- VU.generateM binsCount $ calcBin . (offset +)
 
-  es <- getThreadEvents logId threadId 
-  let (_, _, _, _, !values) = foldl' collectBins (offset, spawnTime, 0, 0, mempty) es
-  return BinLine {
+  values `deepseq` return BinLine {
       binLineName = name 
     , binLineColour = colour 
     , binLineOffset = offset 
-    , binLineValues = VU.fromList $ toList values 
+    , binLineValues = values 
     }
-  where 
-  calcOffset = toBinNumber tOffset binWidth . (subtract tOffset) . fromTimestamp
-  
-  -- Traverse bins collecting times of work and idle
-  collectBins :: (Int, Timestamp, Double, Double, S.Seq Double) 
-    -> Event 
-    -> (Int, Timestamp, Double, Double, S.Seq Double)
-  collectBins (!curBin, !lastT, !stopT, !workT, !bins) e = (curBin', lastT', stopT', workT', bins')
-    where 
-    isNextBin = fromTimestamp (evTime e) >= toBinUpperBound tOffset binWidth curBin
-    curBin' = curBin + (if isNextBin then 1 else 0)
-    lastT' = evTime e 
-    bin = let v = workT / (stopT + workT) in if isNaN v then 0 else v
-    bins' = if isNextBin then bins S.|> bin else bins
+  where   
+  -- | Calculate workout in time bin
+  calcBin :: Int -> SqlPersistT IO Double
+  calcBin i = do 
+    let startT = toTimestamp $ toBinLowBound tOffset binWidth i 
+    let endT = toTimestamp $ toBinUpperBound tOffset binWidth i 
+    es <- getThreadEventsInPeriod logId threadId startT endT
+    let (_, stopT, workT) = foldl' collectTime (startT, 0, 0) es
+    let workout = workT / (stopT + workT)
+    return $ if isNaN workout then 0 else workout
 
-    stopT' = case evSpec e of
-      StopThread{} -> stopT + (if isNextBin 
-        then fromTimestamp (lastT' - lastT)
-        else 0)
-      _ -> stopT 
-    workT' = case evSpec e of
-      RunThread{} -> workT + (if isNextBin 
-        then fromTimestamp (lastT' - lastT)
-        else 0)
-      _ -> workT
+  -- | Collect work and stop times
+  collectTime :: (Timestamp, Double, Double)
+    -> Event 
+    -> (Timestamp, Double, Double)
+  collectTime (!lastT, !stopT, !workT) e = case evSpec e of 
+    StopThread{} -> (evTime e, stopT + dt, workT)
+    RunThread{} -> (evTime e, stopT, workT + dt)
+    _ -> (lastT, stopT, workT)
+    where 
+    dt = fromTimestamp (evTime e - lastT)
 
 -- | Calculate bin number from time
 toBinNumber :: Double -- ^ Offset from begining
@@ -157,8 +156,8 @@ toBinUpperBound tOffset binWidth i = toBinLowBound tOffset binWidth (i+1)
 
 -- | Convert timestamp to seconds
 fromTimestamp :: Timestamp -> Double 
-fromTimestamp = (/ 1000000) . fromIntegral
+fromTimestamp = (/ 1000000000) . fromIntegral
 
 -- | Convert seconds into timestamp
 toTimestamp :: Double -> Timestamp 
-toTimestamp = round . (* 1000000)
+toTimestamp = round . (* 1000000000)

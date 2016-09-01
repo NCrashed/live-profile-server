@@ -9,54 +9,130 @@ Portability : Portable
 -}
 {-# LANGUAGE RecursiveDo #-}
 module Profile.Live.Server.Client.Bined(
-    BinsLine(..)
-  , TimeLine(..)
-  , binedDiagram
+  -- * Server API
+    getFullBinedGraph
+  -- * Widgets
+  , binedGraphWidget
   , binnedDiagramDebugWidget
+  -- * Drawing of bined graph
+  , binedDiagram
   ) where 
 
+import Control.Monad.Trans.Either
+import Data.Colour.SRGB.Linear 
+import Data.Text (unpack)
 import Diagrams.Backend.Reflex as DR
 import Diagrams.Prelude as D
+import GHCJS.Marshal
 import Reflex as R
 import Reflex.Dom as R
+import Servant.API
+import Servant.API.Auth.Token
+import Servant.Client 
 import Text.Printf
 
 import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as VU 
+import qualified Data.Text as T 
 
-data BinsLine = BinsLine {
-  binsName :: String
-, binsColor :: Colour Double 
-, binsOffset :: Int 
-, binsValues :: V.Vector Double
-}
+import Profile.Live.Server.API.Bined
+import Profile.Live.Server.API.EventLog
+import Profile.Live.Server.Client.Async
+import Profile.Live.Server.Client.Bootstrap.Button 
+import Profile.Live.Server.Client.Router 
+import Profile.Live.Server.Client.Utils 
 
-mkBins :: BinsLine -> Diagram B
-mkBins BinsLine{..} = label ||| offset' ||| bins
+import Debug.Trace 
+
+-- | Get all info required to render bined graph for eventlog
+getFullBinedGraph :: EventLogId
+  -> Maybe Double -- ^ bin width
+  -> Maybe (RGB Double) -- ^ thread line colour
+  -> Maybe (RGB Double) -- ^ gc line colour
+  -> Maybe (RGB Double) -- ^ custom event colour
+  -> MToken' '["bined-graph"] -- ^ authorisation token
+  -> EitherT ServantError IO BinedGraph
+
+(      getFullBinedGraph 
+  ) = client binedAPI Nothing 
+
+instance ToJSVal BinedGraph where 
+  toJSVal = toJSVal_aeson
+
+instance FromJSVal BinedGraph where 
+  fromJSVal = fromJSVal_aeson
+
+-- | Widget to display bined graph
+binedGraphWidget :: forall t m . MonadWidget t m 
+  => SimpleToken -- ^ Authorisation token
+  -> Maybe (m (Route t m)) -- ^ Possible widget for "Back" button
+  -> EventLogId -- ^ Id of eventlog
+  -> m (Route t m)
+binedGraphWidget tok backW eid = do 
+  header "Bined graph"
+  (backE, reloadReqE) <- centered $ buttonGroup $ do 
+    backE <- blueButton "Back"
+    reloadReqE  <- blueButton "Reload"
+    return (backE, reloadReqE)
+
+  initialE <- getPostBuild
+  let reloadE = leftmost [reloadReqE, initialE]
+  graphE <- requestBined reloadE
+  _ <- widgetHold (pure ()) $ renderBined <$> graphE
+  --binnedDiagramDebugWidget
+
+  return $ maybe (Route never) (\w -> Route $ const w <$> backE) backW
   where 
-  label = font "Georgia, serif" (fontSize 3 (D.text binsName)) ||| strutX 1
-  offset' = strutX (fromIntegral binsOffset)
-  bins = hcat $ V.toList $ mkBin <$> binsValues
-  mkBin d = square 1 # fc (blend d binsColor white)
+  renderBined :: BinedGraph -> m ()
+  renderBined graph = mdo 
+    let dia = binedDiagram graph
+    _ <- reflexDia (def & sizeSpec .~ dims2D 1800 900) dia
+    return ()
+
+  requestBined :: forall a . Event t a -> m (Event t BinedGraph)
+  requestBined ep = simpleRequest ep (const $
+    getFullBinedGraph eid Nothing Nothing Nothing Nothing (Just (Token tok)))
+
+
+-- | Draw single bined line
+mkBins :: Double -- ^ Offset for labels
+  -> BinLine
+  -> Diagram B
+mkBins labelOffset BinLine{..} = label ||| offset' ||| bins
+  where 
+  label = font "Georgia, serif" (fontSize 3 (D.text . unpack $ binLineName)) ||| strutX labelOffset
+  offset' = strutX (fromIntegral binLineOffset)
+  bins = hcat $ mkBin <$> VU.toList binLineValues
+  mkBin d = square 1 # fc (blend d (mkColour binLineColour) white)
+  mkColour (RGB r g b) = rgb r g b 
 
 -- | Info about time line
 data TimeLine = TimeLine {
-  timeStart :: Float 
-, timeEnd :: Float 
+  timeStart :: Double 
+, timeEnd :: Double 
 , timeLabelGap :: Int   
-, timeBinsCount :: Int
+, timeBinsWidth :: Double
 }
 
+-- | Extract time line from server data
+extractTimeLine :: BinedGraph -> TimeLine 
+extractTimeLine BinedGraph{..} = TimeLine {
+    timeStart = binedGraphBegin
+  , timeEnd = binedGraphEnd
+  , timeLabelGap = 5
+  , timeBinsWidth = binedGraphBinWidth
+  }
+
 -- | Get time value at start of given bin
-timeLineVal :: TimeLine -> Int -> Float 
-timeLineVal TimeLine{..} i = timeStart 
-  + (fromIntegral i) * (timeEnd - timeStart) / fromIntegral timeBinsCount
+timeLineVal :: TimeLine -> Int -> Double 
+timeLineVal TimeLine{..} i = timeStart + (fromIntegral i) * timeBinsWidth
 
 -- | Draw timeline
-mkTimeLine :: TimeLine 
+mkTimeLine :: TimeLine
   -> Diagram B
-mkTimeLine tl@TimeLine{..} = strutX 2 ||| (tline <> ticks <> labels) ||| strutX 1
+mkTimeLine tl@TimeLine{..} = (tline <> ticks <> labels) ||| strutX 2
   where 
-  n = timeBinsCount
+  n = ceiling $ (timeEnd - timeStart) / timeBinsWidth
   tline = fromOffsets [V2 (fromIntegral n) 0]
   isBigTick i = i `mod` timeLabelGap == 0
   tick i v = fromVertices $ P <$> [V2 (fromIntegral i) 0, V2 (fromIntegral i) (-v) ]
@@ -66,28 +142,45 @@ mkTimeLine tl@TimeLine{..} = strutX 2 ||| (tline <> ticks <> labels) ||| strutX 
     # fontSize 2 
   labels = mconcat [ mkLabel i | i <- [0 .. n], isBigTick i]
 
-binedDiagram :: P2 Double -> Diagram B
-binedDiagram _ = frame 0.1 (tline' === strutY 0.5 === bins')
+-- | Draw bined diagram from server data and mouse position
+binedDiagram :: BinedGraph -> Diagram B
+binedDiagram graph = centerXY $ frame 0.2 $
+  (alignL $ strutX labelOffset ||| tline')
+  === 
+  strutY 0.5 
+  === 
+  bins'
+  where
+  labelOffset = (/ 4) . fromIntegral . maximum 
+    $ T.length . binLineName <$> binedGraphLines graph
+  tline' = mkTimeLine $ extractTimeLine graph
+  bins' = vcat $ V.toList $ mkBins labelOffset <$> binedGraphLines graph
+
+-- | Special widget for bined graph dedug
+binnedDiagramDebugWidget :: MonadWidget t m => m ()
+binnedDiagramDebugWidget = mdo
+  -- -- svgDyn :: Dynamic t (m (DiaEv Any))
+  -- svgDyn <- mapDyn (reflexDia $ def & sizeSpec .~ dims2D 1920 1000) diaDyn
+  -- -- pos :: Event (P2 Double)
+  -- pos <- switchPromptly never <$> fmap diaMousemovePos =<< dyn svgDyn
+  -- -- diaDyn :: Dynamic (Diagram B)
+  -- diaDyn <- holdDyn (binedDiagram graph . p2 $ (0, -1000)) (binedDiagram graph <$> pos)
+  let dia = binedDiagram graph
+  _ <- reflexDia (def & sizeSpec .~ dims2D 1920 1000) dia
+  return ()
   where 
-  tline' = mkTimeLine tline
-  tline = TimeLine 0 10 5 maxn
-  bins' = vcat $ mkBins <$> bins
-  bins = [
-      BinsLine "GC" red 0 $ V.fromList $ take 50 $ cycle sample0
-    , BinsLine "1" blue 0 $ V.fromList $ take 50 $ cycle sample1
-    , BinsLine "2" blue 7 $ V.fromList $ take 10 $ cycle sample2
+  bins = V.fromList [
+      BinLine "GC" (toRGB red) 0 $ VU.fromList $ take 50 $ cycle sample0
+    , BinLine "1" (toRGB blue) 0 $ VU.fromList $ take 50 $ cycle sample1
+    , BinLine "2" (toRGB blue) 7 $ VU.fromList $ take 10 $ cycle sample2
     ]
   sample0 = [0.0, 0.1, 0.1, 0.2, 0.0, 0.5, 0.8, 0.3, 0.1, 0.2, 0.0, 0.1, 0.1]
   sample1 = [0.5, 0.4, 0.3, 0.5, 0.9, 1.0, 1.0, 0.1, 0.4, 0.5, 0.7, 0.9, 0.4]
   sample2 = [0.5, 0.9, 1.0, 1.0, 0.1, 0.4, 0.5]
-  maxn = maximum $ V.length . binsValues  <$> bins
-
-binnedDiagramDebugWidget :: MonadWidget t m => m ()
-binnedDiagramDebugWidget = mdo
-  -- svgDyn :: Dynamic t (m (DiaEv Any))
-  svgDyn <- mapDyn (reflexDia $ def & sizeSpec .~ dims2D 1920 1000) diaDyn
-  -- pos :: Event (P2 Double)
-  pos <- switchPromptly never <$> fmap diaMousemovePos =<< dyn svgDyn
-  -- diaDyn :: Dynamic (Diagram B)
-  diaDyn <- holdDyn (binedDiagram . p2 $ (0, -1000)) (binedDiagram <$> pos)
-  return ()
+  maxn = maximum $ VU.length . binLineValues  <$> bins
+  graph = BinedGraph {
+      binedGraphBegin = 0 
+    , binedGraphEnd = 10 
+    , binedGraphBinWidth = 10 / fromIntegral maxn
+    , binedGraphLines = bins
+    }

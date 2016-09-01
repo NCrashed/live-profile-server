@@ -51,6 +51,9 @@ instance ToParamSchema (RGB a) where
 instance Read a => FromHttpApiData (RGB a) where
   parseQueryParam = either (Left . T.pack) Right . readEither . T.unpack
 
+instance Show a => ToHttpApiData (RGB a) where 
+  toQueryParam = T.pack . show 
+
 -- | Single swimline of bined graph
 data BinLine = BinLine {
   binLineName :: !Text -- ^ Name of thread

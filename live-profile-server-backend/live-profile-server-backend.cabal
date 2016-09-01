@@ -51,6 +51,7 @@ library
     , bytestring                  >= 0.10     && < 0.11
     , colour                      >= 2.3      && < 2.4
     , containers                  >= 0.5      && < 0.6
+    , deepseq                     >= 1.4      && < 1.5
     , esqueleto                   >= 2.4.3    && < 2.5
     , fast-logger                 >= 2.4      && < 2.5
     , file-embed                  >= 0.0.10   && < 0.1

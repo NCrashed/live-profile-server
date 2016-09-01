@@ -40,6 +40,7 @@ import Profile.Live.Server.API.Connection
 import Profile.Live.Server.API.EventLog
 import Profile.Live.Server.API.Session
 import Profile.Live.Server.Client.Async
+import Profile.Live.Server.Client.Bined
 import Profile.Live.Server.Client.Bootstrap.Button
 import Profile.Live.Server.Client.Bootstrap.Modal
 import Profile.Live.Server.Client.EventLog
@@ -133,10 +134,13 @@ sessionsWidget token backW conn = do
     deletedE <- deleteRequest deleteE
 
   let viewLogE = fmapMaybe getSessionViewLog sessEvent
+  let binedE = fmapMaybe getSessionViewBined sessEvent
+
   let thisW = sessionsWidget token backW conn
   let viewLogR = Route $ eventLogWidget token (Just thisW) <$> viewLogE
+  let viewBinedR = Route $ binedGraphWidget token (Just thisW) <$> binedE
   let backR = Route $ maybe never (\w -> const w <$> backE) backW
-  return $ viewLogR <> backR
+  return $ viewLogR <> backR <> viewBinedR
   where 
 
   renderSession :: WithId (Id Session) Session -> m (Event t SessionAction)
