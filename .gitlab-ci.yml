@@ -59,7 +59,7 @@ image-deploy:
       postgres:9.5
 
     - sudo docker run -p 8302:3000
-      --link live-profile:postgres
+      --link live-profile-postgres:postgres
       -e POSTGRES_USER=postgres 
       -e POSTGRES_DATABASE=postgres
       -e POSTGRES_PASSWORD=ZooW4eigh8AePoh2ahwa
