@@ -299,7 +299,7 @@ parseEventLogInc :: B.ByteString -- ^ Data of log
     -- If method returns 'False' the parsing is stopped.
   -> App (Either ParseExit ())
 parseEventLogInc bs consumer = do
-  (res, _) <- foldlM parseChunk (Right E.newParserState, 0) $ B.toChunks bs
+  res <- parseChunkes
   case res of 
     Left er -> return $ Left er 
     Right parser -> case E.readHeader parser of 
@@ -310,6 +310,11 @@ parseEventLogInc bs consumer = do
           else Right ()
   where 
   totalLength = fromIntegral (B.length bs)
+
+  parseChunkes = do
+    (res, compl) <- foldlM parseChunk (Right E.newParserState, 0) $ B.toChunks bs
+    fst <$> parseChunk (res, compl) BS.empty
+
   parseChunk acc@(Left _, _) _ = return acc
   parseChunk (Right !p, !compl) !chunk = do
     p' <- go $ p `E.pushBytes` chunk

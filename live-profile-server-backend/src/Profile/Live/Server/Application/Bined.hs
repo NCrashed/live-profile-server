@@ -67,8 +67,10 @@ getFullBinedGraph :: EventLogId
 getFullBinedGraph i mbinWidth colThreads colGc colCustom = do 
   binedGraphBegin <- getFirstEventTime
   binedGraphEnd <- getLastEventTime
-  let defaultWidth = (binedGraphEnd - binedGraphBegin) / fromIntegral (50 :: Int)
-  let binedGraphBinWidth = fromMaybe defaultWidth mbinWidth
+  let defaultWidth' = (binedGraphEnd - binedGraphBegin) / fromIntegral (50 :: Int)
+      defaultWidth = if defaultWidth' == 0 then 1 else defaultWidth'
+  let binedGraphBinWidth' = fromMaybe defaultWidth mbinWidth
+      binedGraphBinWidth = if binedGraphBinWidth' == 0 then 1 else binedGraphBinWidth'
   binedGraphLines <- getBinLines binedGraphBegin binedGraphBinWidth 
     binedGraphBegin binedGraphEnd colThreads colGc colCustom i
   return BinedGraph{..}
