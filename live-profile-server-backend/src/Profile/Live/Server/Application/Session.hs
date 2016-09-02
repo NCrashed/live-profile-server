@@ -305,6 +305,10 @@ importFakeSession cid elog = do
 importLocal :: Id Connection -> App ()
 importLocal i = do 
   ImportConfig{..} <- getsConfig configImport
+  liftIO $ do 
+    createDirectoryIfMissing True importConfigFolder
+    createDirectoryIfMissing True importConfigSuccess
+    createDirectoryIfMissing True importConfigFailure
   importLog $ "Start local import from " <> showl importConfigFolder
   (_ :/ dTree) <- liftIO $ readDirectoryWithL B.readFile importConfigFolder
   case dTree of 
