@@ -284,22 +284,24 @@ importLocalMethod i token = do
   return Unit
 
 -- | Importing a eventlog for connection with creation of fake session
-importFakeSession :: Id Connection -> EventLog -> SqlPersistT IO (Id Session)
+importFakeSession :: Id Connection -> B.ByteString -> SqlPersistT IO (Either String (Id Session))
 importFakeSession cid elog = do 
   -- Import eventlog
-  el <- importEventLog elog
-
-  -- Construct fake session 
-  t <- liftIO getCurrentTime
-  let sess :: Session 
-      sess = Field cid
-          :& Field t 
-          :& Field (Just t) 
-          :& Field el
-          :& Field Nothing
-          :& RNil
-  VKey sessId <- insert sess 
-  return sessId 
+  meid <- importEventLogInc elog
+  case meid of 
+    Left er -> return $ Left er
+    Right eid -> do 
+      -- Construct fake session 
+      t <- liftIO getCurrentTime
+      let sess :: Session 
+          sess = Field cid
+              :& Field t 
+              :& Field (Just t) 
+              :& Field eid
+              :& Field Nothing
+              :& RNil
+      VKey sessId <- insert sess 
+      return $ Right sessId 
 
 -- | Import all eventlog files from server special folder
 importLocal :: Id Connection -> App ()
@@ -325,8 +327,10 @@ importLocal i = do
 
   processFile name bs f fSucc = do 
     importLog $ "Importing file " <> showl name
-    either fail (void . runDB . importFakeSession i) $ parseEventLog bs
+    res <- runDB (importFakeSession i bs)
+    either fail (const $ return ()) res
     moveToSuccess name f fSucc
+    importLog $ "Finished importing file " <> showl name
 
   moveToSuccess name f fSucc = liftIO $ renameFile (f </> name) (fSucc </> name)
   moveToFailure name f fFail = liftIO $ renameFile (f </> name) (fFail </> name)

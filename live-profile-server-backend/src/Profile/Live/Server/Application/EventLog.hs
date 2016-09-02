@@ -24,11 +24,15 @@ module Profile.Live.Server.Application.EventLog(
   , getEventLogLastEvent
   , importEventLog
   , parseEventLog
+  , ParseStage(..)
+  , parseEventLogInc
+  , importEventLogInc
   , eventLogServer
   ) where 
 
 import Control.Monad 
 import Data.Aeson.WithField
+import Data.Foldable 
 import Data.Maybe 
 import Data.Monoid
 import Data.Text (Text)
@@ -188,13 +192,24 @@ deleteEventLog :: EventLogImplId -- ^ Id of log
   -> SqlPersistT IO ()
 deleteEventLog = deleteCascade
 
--- | Import raw event log from memory and create a fake session for it
+-- | Import raw event log from memory 
 importEventLog :: EventLog -> SqlPersistT IO EventLogId
 importEventLog (EventLog (E.Header types) (Data es)) = do 
   i <- insert EventLogImpl
   mapM_ (void . addEventLogType i) types
   mapM_ (void . addEventLogEvent i) es
   return $ fromKey i 
+
+-- | Parse raw event log and import it incrementaly
+importEventLogInc :: B.ByteString -> SqlPersistT IO (Either String EventLogId)
+importEventLogInc bs = do 
+  i <- insert EventLogImpl
+  res <- parseEventLogInc bs $ consumer i
+  return $ const (fromKey i) <$> res
+  where 
+  consumer i r = case r of 
+    ParseHeader (E.Header types) -> mapM_ (void . addEventLogType i) types
+    ParseEvent e -> void $ addEventLogEvent i e 
 
 -- | Parse eventlog from memory, allow partial logs
 parseEventLog :: B.ByteString -> Either String EventLog 
@@ -215,3 +230,35 @@ parseEventLog bs = let
         else go True acc parser'
       E.Complete -> Right (reverse acc, parser')
       E.ParseError err -> Left err
+
+-- | Helper data type for `parseEventLogInc`
+data ParseStage = 
+    ParseEvent !E.Event 
+  | ParseHeader !E.Header
+
+-- | Parse eventlog incrementally from memory, allow partial logs
+parseEventLogInc :: B.ByteString -- ^ Data of log
+  -> (ParseStage -> SqlPersistT IO ()) -- ^ Reaction to partial result
+  -> SqlPersistT IO (Either String ())
+parseEventLogInc bs consumer = do
+  res <- foldlM parseChunk (Right E.newParserState) $ B.toChunks bs
+  case res of 
+    Left er -> return $ Left er 
+    Right parser -> case E.readHeader parser of 
+      Nothing -> return $ Left "Missing header"
+      Just h -> do
+        consumer $ ParseHeader h 
+        return $ Right ()
+  where 
+  parseChunk (Left er) _ = return $ Left er 
+  parseChunk (Right !p) !chunk = go $ p `E.pushBytes` chunk
+    where 
+    go !parser = do 
+      let (res, parser') = E.readEvent parser 
+      case res of 
+        E.Item e -> do
+          consumer $ ParseEvent e
+          go parser'
+        E.Incomplete -> return $ Right parser'
+        E.Complete -> return $ Right parser'
+        E.ParseError err -> return $ Left err
