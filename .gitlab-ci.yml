@@ -60,6 +60,7 @@ image-deploy:
 
     - sudo docker run -p 8302:3000
       --link live-profile-postgres:postgres
+      -v /home/live-profile-server/import:/opt/server/import
       -e POSTGRES_USER=postgres 
       -e POSTGRES_DATABASE=postgres
       -e POSTGRES_PASSWORD=ZooW4eigh8AePoh2ahwa
