@@ -27,6 +27,7 @@ library
     Profile.Live.Server.Client.Bootstrap.Button
     Profile.Live.Server.Client.Bootstrap.Form
     Profile.Live.Server.Client.Bootstrap.Modal
+    Profile.Live.Server.Client.Bootstrap.Progress
     Profile.Live.Server.Client.Connection
     Profile.Live.Server.Client.EventLog
     Profile.Live.Server.Client.Pagination

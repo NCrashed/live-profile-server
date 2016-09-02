@@ -44,6 +44,7 @@ import Profile.Live.Server.Client.Async
 import Profile.Live.Server.Client.Bined
 import Profile.Live.Server.Client.Bootstrap.Button
 import Profile.Live.Server.Client.Bootstrap.Modal
+import Profile.Live.Server.Client.Bootstrap.Progress
 import Profile.Live.Server.Client.EventLog
 import Profile.Live.Server.Client.Pagination
 import Profile.Live.Server.Client.Router
@@ -131,6 +132,8 @@ sessionsWidget token backW conn = do
 
   connectedE <- connectRequest connectE 
   importedE <- localImportRequest locImportE
+
+  debugProgressBar 
 
   rec 
     let reloadE = leftmost [
