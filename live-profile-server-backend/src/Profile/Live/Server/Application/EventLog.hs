@@ -241,6 +241,7 @@ importEventLog p (EventLog (E.Header types) (Data es)) = do
     mapM_ (void . addEventLogEvent i) es
     let eventsPart = fromIntegral (length es) / total 
     update i [EventLogImplImport =. Just eventsPart]
+  runDB $ update i [EventLogImplImport =. Nothing]
   return $ fromKey i 
 
 -- | Parse raw event log and import it incrementaly
@@ -251,7 +252,7 @@ importEventLogInc fn bs = do
   case res of 
     Left ParseCancel -> runDB $ delete i 
     Left (ParseError er) -> runDB $ update i [EventLogImplImportFailed =. Just er]
-    _ -> return ()
+    _ -> runDB $ update i [EventLogImplImport =. Nothing]
   return $ const (fromKey i) <$> res
   where 
   consumer i p r = do
