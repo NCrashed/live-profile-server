@@ -8,12 +8,14 @@ Stability   : experimental
 Portability : Portable
 -}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE BangPatterns #-}
 module Profile.Live.Server.Client.Utils(
     header
   , danger
   , centered
   , whenJust
   , periodical
+  , whenPrev
   ) where 
 
 import Control.Monad.IO.Class
@@ -45,3 +47,15 @@ periodical dt = do
   t <- liftIO getCurrentTime
   tickE <- tickLossy dt t
   return $ fmap (const ()) tickE
+
+-- | Fires when the predicated returns 'True' on previous and current values of event
+whenPrev :: MonadWidget t m => (a -> a -> Bool) -> Event t a -> m (Event t a)
+whenPrev f ea = do 
+  bDyn <- foldDyn accum (Nothing, False) ea
+  return $ fmapMaybe filterEv $ updated bDyn
+  where 
+  accum !a (Nothing, _) = (Just a, True)
+  accum !a (Just a', _) = let v = f a' a in v `seq` (Just a, v)
+
+  filterEv (Just a, True) = Just a
+  filterEv _ = Nothing 

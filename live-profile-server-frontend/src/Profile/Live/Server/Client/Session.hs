@@ -24,6 +24,7 @@ import Control.Lens
 import Control.Monad.Trans.Either
 import Data.Aeson.Unit 
 import Data.Aeson.WithField 
+import Data.List (sort)
 import Data.Monoid 
 import Data.Proxy 
 import Data.Text (Text)
@@ -149,13 +150,14 @@ sessionsWidget token backW conn = do
   connectedE <- connectRequest connectE 
   importedE <- localImportRequest locImportE
 
-  importWidget
+  importChangeE <- importWidget
 
   rec 
     let reloadE = leftmost [
             const () <$> connectedE
           , const () <$> disconnectedE
           , const () <$> deletedE
+          , importChangeE
           , importedE]
     sessEvent <- renderListReload (Just 10) renderSession requestSessions reloadE
 
@@ -240,7 +242,8 @@ sessionsWidget token backW conn = do
     return i
 
   -- Display logs that are importing now
-  importWidget :: m ()
+  -- Return event that signals about need of update of a session widget
+  importWidget :: m (Event t ())
   importWidget = do 
     initialE <- getPostBuild
     updateE <- periodical (fromIntegral (5 :: Int) :: NominalDiffTime)
@@ -260,8 +263,18 @@ sessionsWidget token backW conn = do
       let deleteE = fmapMaybe getImportDelete actionE
       deletedE <- importingCancelRequest deleteE
 
-    return ()
+      changedE <- whenPrev idsChanged importDataE
+    return $ leftmost [
+        const () <$> canceledE
+      , const () <$> deletedE
+      , const () <$> changedE
+      ]
     where 
+    idsChanged :: [EventLogImport] -> [EventLogImport] -> Bool 
+    idsChanged as bs = ids as /= ids bs 
+      where 
+      ids = sort . fmap eventLogImportId
+
     renderImports :: [EventLogImport] -> m (Event t ImportAction)
     renderImports es = do 
       elAttr "div" [("style", "margin-top: 10px;")] $ return ()
