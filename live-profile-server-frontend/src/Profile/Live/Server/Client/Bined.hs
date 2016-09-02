@@ -84,13 +84,21 @@ binedGraphWidget tok backW eid = do
   renderBined :: BinedGraph -> m ()
   renderBined graph = mdo 
     let dia = binedDiagram graph
-    _ <- reflexDia (def & sizeSpec .~ dims2D 1800 900) dia
+    _ <- reflexDia (def & sizeSpec .~ dims2D 1900 estimateHeight) dia
     return ()
+    where 
+      unitSize = 30
+      estimateHeight = unitSize * sum (estimateGroupH <$> binedGraphLines graph)
+      estimateGroupH LineGroup{..} = 2 + sum (estimateLineH <$> lineGroupLines)
+      estimateLineH _ = 1 
 
   requestBined :: forall a . Event t a -> m (Event t BinedGraph)
   requestBined ep = simpleRequest ep (const $
     getFullBinedGraph eid Nothing Nothing Nothing Nothing (Just (Token tok)))
 
+-- | Makes lines not depend on resolution
+globalThin :: OrderedField n => Measure n 
+globalThin = global 0.02
 
 -- | Draw single bined line
 mkBins :: Double -- ^ Offset for labels
@@ -101,7 +109,7 @@ mkBins labelOffset BinLine{..} = label ||| offset' ||| bins
   label = font "Georgia, serif" (fontSize 3 (D.text . unpack $ binLineName)) ||| strutX labelOffset
   offset' = strutX (fromIntegral binLineOffset)
   bins = hcat $ mkBin <$> VU.toList binLineValues
-  mkBin d = square 1 # fc (blend d (mkColour binLineColour) white)
+  mkBin d = lineWidth globalThin $ square 1 # fc (blend d (mkColour binLineColour) white)
   mkColour (RGB r g b) = rgb r g b 
 
 -- | Draw group of bined lines
@@ -140,12 +148,12 @@ timeLineVal TimeLine{..} i = timeStart + (fromIntegral i) * timeBinsWidth
 -- | Draw timeline
 mkTimeLine :: TimeLine
   -> Diagram B
-mkTimeLine tl@TimeLine{..} = (tline <> ticks <> labels) ||| strutX 2
+mkTimeLine tl@TimeLine{..} = strutY 1 === ((tline <> ticks <> labels) ||| strutX 2)
   where 
   n = ceiling $ (timeEnd - timeStart) / timeBinsWidth
-  tline = fromOffsets [V2 (fromIntegral n) 0]
+  tline = lineWidth globalThin $ fromOffsets [V2 (fromIntegral n) 0]
   isBigTick i = i `mod` timeLabelGap == 0
-  tick i v = fromVertices $ P <$> [V2 (fromIntegral i) 0, V2 (fromIntegral i) (-v) ]
+  tick i v = lineWidth globalThin $ fromVertices $ P <$> [V2 (fromIntegral i) 0, V2 (fromIntegral i) (-v) ]
   ticks = mconcat [ if isBigTick i then tick i 0.2 else tick i 0.1 | i <- [0 .. n]]
   mkLabel i = D.text (printf "%.2f" (timeLineVal tl i) ++ "s") 
     # moveTo (P $ V2 (fromIntegral i) 0.1)
