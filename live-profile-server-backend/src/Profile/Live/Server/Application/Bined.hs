@@ -12,17 +12,19 @@ module Profile.Live.Server.Application.Bined(
     binedServer
   ) where 
 
-import Control.DeepSeq 
+import Control.DeepSeq
 import Data.Colour.Names
 import Data.Colour.SRGB.Linear
 import Data.Foldable 
 import Data.Maybe 
+import Data.Ord 
 import Database.Persist.Sql
 import GHC.RTS.Events 
 import Servant.API.Auth.Token
 import Servant.Server 
 import Servant.Server.Auth.Token
 
+import qualified Data.Filterable as F 
 import qualified Data.HashMap.Strict as H 
 import qualified Data.List as L 
 import qualified Data.Sequence as S 
@@ -124,9 +126,9 @@ getGcLine tOffset binWidth starT endT colour logId = do
   where 
   getter = getGcEventsInPeriod logId
   einterpret e = case evSpec e of 
-    StartGC{} -> WorkoutWork (evTime e)
-    EndGC{} -> WorkoutStop (evTime e)
-    _ -> WorkoutNone
+    StartGC{} -> Just . WorkoutWork . evTime $ e
+    EndGC{} -> Just . WorkoutStop . evTime $ e
+    _ -> Nothing
 
 -- | Get bined lines for custom events
 getCustomLines :: Double -- ^ Time offset from begining 
@@ -136,17 +138,24 @@ getCustomLines :: Double -- ^ Time offset from begining
   -> SqlPersistT IO (V.Vector BinLine)
 getCustomLines tOffset binWidth colour logId = do 
   es <- splitCustomEvents <$> getUserEvents logId
-  return $ V.fromList $ toList $ H.foldlWithKey' go mempty es
+  return $ V.fromList . toList . sortByTime $ H.foldlWithKey' go mempty es
   where 
-  go :: S.Seq BinLine -> String -> S.Seq UserEvent -> S.Seq BinLine
-  go !bls !name !es = bls S.|> getCustomLine tOffset binWidth colour 
-    name es 
+  go :: S.Seq (Timestamp, BinLine) -> String -> S.Seq UserEvent -> S.Seq (Timestamp, BinLine)
+  go !bls !name !es = bls S.|> (appearTime, line)
+    where 
+    line = getCustomLine tOffset binWidth colour name es
+    appearTime = case S.viewl es of 
+      S.EmptyL -> 0
+      e S.:< _ -> userEvTime e 
+
+  sortByTime :: S.Seq (Timestamp, BinLine) -> S.Seq BinLine
+  sortByTime = fmap snd . S.sortBy (comparing fst)
 
 -- | Helper to carry info about user event start and end
 data UserEvent = 
     UserEventStart !Timestamp
   | UserEventEnd !Timestamp
-  deriving (Eq)
+  deriving (Eq, Show)
 
 -- | Extract event time
 userEvTime :: UserEvent -> Timestamp
@@ -190,16 +199,16 @@ getCustomLine tOffset binWidth colour name es =
     , binLineValues = values 
     }
   where 
-  apeareTime = case S.viewl es of 
+  appearTime = case S.viewl es of 
     S.EmptyL -> 0
     e S.:< _ -> fromTimestamp $ userEvTime e 
   lastTime = case S.viewr es of 
     S.EmptyR -> 0 
     _ S.:> e -> fromTimestamp $ userEvTime e 
-  offset = toBinNumber tOffset binWidth apeareTime 
-  binsCount = ceiling $ (apeareTime - lastTime) / binWidth
+  offset = toBinNumber tOffset binWidth appearTime 
+  binsCount = ceiling $ (lastTime - appearTime) / binWidth
   values = calcBins tOffset binWidth binsCount offset es einterpret
-  einterpret e = case e of 
+  einterpret e = Just $ case e of 
     UserEventStart t -> WorkoutWork t
     UserEventEnd t -> WorkoutStop t
 
@@ -229,17 +238,22 @@ getThreadLine tOffset binWidth colour logId threadId = do
   where 
   getter = getThreadEventsInPeriod logId threadId
   einterpret e = case evSpec e of 
-    StopThread{} -> WorkoutWork (evTime e)
-    RunThread{} -> WorkoutStop (evTime e)
-    _ -> WorkoutNone
+    StopThread{} -> Just . WorkoutWork . evTime $ e
+    RunThread{} -> Just . WorkoutStop . evTime $ e
+    _ -> Nothing
 
--- | Helper for 'calcBin' to select wether event increments work time
+-- | Helper for 'calcBin' to select whether event increments work time
 -- or stop time or neither of them.
 data WorkoutCase = 
     WorkoutWork Timestamp
   | WorkoutStop Timestamp
-  | WorkoutNone
   deriving (Eq)
+
+-- | Helper to extract timestamp from case
+workoutCaseTimestamp :: WorkoutCase -> Timestamp
+workoutCaseTimestamp wc = case wc of 
+  WorkoutWork t -> t 
+  WorkoutStop t -> t 
 
 -- | Helper that calculates all bins in once
 calcBinsM :: Foldable f => Double -- ^ Time offset 
@@ -248,7 +262,7 @@ calcBinsM :: Foldable f => Double -- ^ Time offset
   -> Int -- ^ Bins offset
   -> (Timestamp -> Timestamp -> SqlPersistT IO (f a)) 
   -- ^ Getter of events during period
-  -> (a -> WorkoutCase) -- ^ Interpreter of events
+  -> (a -> Maybe WorkoutCase) -- ^ Interpreter of events
   -> SqlPersistT IO (VU.Vector Double) 
 calcBinsM tOffset binWidth binsCount offset getter einterpret = do
   (_ , values) <- foldlM go (False, mempty) $ (+offset) <$> [0 .. binsCount-1]
@@ -260,28 +274,38 @@ calcBinsM tOffset binWidth binsCount offset getter einterpret = do
     return (endRun, bins S.|> b)
 
 -- | Helper that calculates all bins in once
-calcBins :: Foldable f => Double -- ^ Time offset 
+calcBins :: forall f a . (Foldable f, F.Filterable f a, F.FilterConstr f a) 
+  => Double -- ^ Time offset 
   -> Double -- ^ Bin width in seconds
   -> Int -- ^ Bins count
   -> Int -- ^ Bins offset
   -> f a
   -- ^ Getter of events during period
-  -> (a -> WorkoutCase) -- ^ Interpreter of events
+  -> (a -> Maybe WorkoutCase) -- ^ Interpreter of events
   -> VU.Vector Double
 calcBins tOffset binWidth binsCount offset es einterpret = VU.fromList $ toList values
   where 
   (_ , values) = foldl' go (False, mempty) $ (+offset) <$> [0 .. binsCount-1]
   go :: (Bool, S.Seq Double) -> Int -> (Bool, S.Seq Double)
   go (!begRun, !bins) i = let
-    (endRun, !b) = calcBin tOffset binWidth es einterpret begRun i
+    es' = F.filter (eventsInBin i) es
+    (endRun, !b) = calcBin tOffset binWidth es' einterpret begRun i
     in (endRun, bins S.|> b)
+
+  eventsInBin :: Int -> a -> Bool 
+  eventsInBin i a = let 
+    startT = toTimestamp $ toBinLowBound tOffset binWidth i 
+    endT = toTimestamp $ toBinUpperBound tOffset binWidth i
+    t = maybe 0 workoutCaseTimestamp $ einterpret a
+    in t >= startT && t < endT
+
 
 -- | Calculate workout during a bin
 calcBinM :: Foldable f => Double -- ^ Time offset 
   -> Double -- ^ Bin width in seconds
   -> (Timestamp -> Timestamp -> SqlPersistT IO (f a)) 
   -- ^ Getter of events during period
-  -> (a -> WorkoutCase) -- ^ Interpreter of events
+  -> (a -> Maybe WorkoutCase) -- ^ Interpreter of events
   -> Bool -- ^ Does the thread/event is running at begining of bin
   -> Int -- ^ Bin number
   -> SqlPersistT IO (Bool, Double) 
@@ -294,12 +318,12 @@ calcBinM tOffset binWidth getter einterpret begRun i = do
   return $ calcBin tOffset binWidth es einterpret begRun i
 
 -- | Calculate workout during a bin
-calcBin :: forall f a . Foldable f 
+calcBin :: forall f a . Foldable f
   => Double -- ^ Time offset 
   -> Double -- ^ Bin width in seconds
   -> f a -- ^ Sequence of events
   -- ^ Getter of events during period
-  -> (a -> WorkoutCase) -- ^ Interpreter of events
+  -> (a -> Maybe WorkoutCase) -- ^ Interpreter of events
   -> Bool -- ^ Does the thread/event is running at begining of bin
   -> Int -- ^ Bin number
   -> (Bool, Double) 
@@ -308,21 +332,26 @@ calcBin :: forall f a . Foldable f
 calcBin tOffset binWidth es einterpret begRun i = (endRun, workout)
   where 
   startT = toTimestamp $ toBinLowBound tOffset binWidth i 
-  (_, endRun, stopT, workT) = foldl' collectTime (startT, begRun, 0, 0) es
-  workout' = if begRun && null es 
-    then 1.0
-    else workT / (stopT + workT)
+  endT = toTimestamp $ toBinUpperBound tOffset binWidth i 
+
+  (lastT, endRun, stopT', workT') = foldl' collectTime (startT, begRun, 0, 0) es
+  endingT = fromTimestamp $ endT - lastT
+  stopT = stopT' + if endRun then 0 else endingT
+  workT = workT' + if endRun then endingT else 0 
+
+  workout' = workT / (stopT + workT)
   workout = if isNaN workout' then 0 else workout'
+
   -- | Collect work and stop times
   collectTime :: (Timestamp, Bool, Double, Double)
     -> a 
     -> (Timestamp, Bool, Double, Double)
-  collectTime (!lastT, !br, !st, !wt) e = case einterpret e of 
-    WorkoutWork t -> (t, True, st + dt t, wt)
-    WorkoutStop t -> (t, False, st, wt + dt t)
-    WorkoutNone -> (lastT, br, st, wt)
+  collectTime (!lt, !br, !st, !wt) e = case einterpret e of 
+    Just (WorkoutWork t) -> (t, True, st + dt t, wt)
+    Just (WorkoutStop t) -> (t, False, st, wt + dt t)
+    Nothing -> (lt, br, st, wt)
     where 
-    dt t = fromTimestamp (t - lastT)
+    dt t = fromTimestamp (t - lt)
 
 -- | Calculate bin number from time
 toBinNumber :: Double -- ^ Offset from begining

@@ -122,8 +122,9 @@ mkLineGroup labelOffset LineGroup{..}
   where 
   labelText = T.toUpper lineGroupName
   label = font "Georgia, serif" (fontSize 3 (D.text . unpack $ labelText))
-  bins = vcat $ V.toList $ mkBins labelOffset <$> lineGroupLines
-
+  bins = vcat $ V.toList $ mkBins labelOffset <$> V.filter nonEmptyValues lineGroupLines
+  nonEmptyValues BinLine{..} = not $ VU.null binLineValues
+  
 -- | Info about time line
 data TimeLine = TimeLine {
   timeStart :: Double 
