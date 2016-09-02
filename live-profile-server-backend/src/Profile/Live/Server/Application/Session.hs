@@ -284,7 +284,7 @@ importLocalMethod i token = do
   return Unit
 
 -- | Importing a eventlog for connection with creation of fake session
-importFakeSession :: Id Connection -> B.ByteString -> SqlPersistT IO (Either String (Id Session))
+importFakeSession :: Id Connection -> B.ByteString -> SqlPersistT IO (Either ParseExit (Id Session))
 importFakeSession cid elog = do 
   -- Import eventlog
   meid <- importEventLogInc elog
@@ -328,7 +328,9 @@ importLocal i = do
   processFile name bs f fSucc = do 
     importLog $ "Importing file " <> showl name
     res <- runDB (importFakeSession i bs)
-    either fail (const $ return ()) res
+    case res of 
+      Left (ParseError er) -> fail er 
+      _ -> return ()
     moveToSuccess name f fSucc
     importLog $ "Finished importing file " <> showl name
 

@@ -10,6 +10,7 @@ Portability : Portable
 module Profile.Live.Server.Utils(
     showt
   , whenNothing
+  , whenJust
   , fromKey
   , toKey
   ) where
@@ -28,6 +29,10 @@ whenNothing :: Applicative m => Maybe a -> m () -> m ()
 whenNothing ma f = case ma of 
   Nothing -> f 
   Just _ -> pure ()
+
+-- | Run action if 'Maybe' is 'Just'
+whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
+whenJust ma f = maybe (pure ()) f ma
 
 -- | Shortcut to convert sql key
 fromKey :: (Integral a, ToBackendKey SqlBackend record) 

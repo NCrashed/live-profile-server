@@ -51,6 +51,9 @@ share [mkPersist sqlSettings
      , mkDeleteCascade sqlSettings
      , mkMigrate "migrateAll"] [persistLowerCase|
 EventLogImpl
+  import Double Maybe -- percent of import
+  importCancel Bool Maybe -- the import was canceled
+  importFailed String Maybe -- the import was failed
 
 EventTypeImpl
   eventLog EventLogImplId

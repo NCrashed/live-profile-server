@@ -24,13 +24,17 @@ module Profile.Live.Server.Application.EventLog(
   , getEventLogLastEvent
   , importEventLog
   , parseEventLog
+  , importingList
+  , importingCancel
   , ParseStage(..)
+  , ParseExit(..)
   , parseEventLogInc
   , importEventLogInc
   , eventLogServer
   ) where 
 
 import Control.Monad 
+import Data.Aeson.Unit
 import Data.Aeson.WithField
 import Data.Foldable 
 import Data.Maybe 
@@ -46,6 +50,7 @@ import Servant.Server
 import Servant.Server.Auth.Token
 
 import qualified Data.Binary.Put as B
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as B 
 import qualified GHC.RTS.EventsIncremental as E 
 
@@ -61,10 +66,12 @@ import Profile.Live.Server.Application.EventLog.Query
 eventLogServer :: ServerT EventLogAPI App 
 eventLogServer = listEvents
   :<|> downloadEventLog
+  :<|> importingListMethod
+  :<|> importingCancelMethod
 
 -- | Insert empty eventlog
 startEventLog :: SqlPersistT IO EventLogImplId
-startEventLog = insert EventLogImpl
+startEventLog = insert $ EventLogImpl Nothing Nothing Nothing
 
 -- | Insert event type into eventlog being recording
 addEventLogType :: EventLogImplId -> EventType -> SqlPersistT IO EventTypeImplId
@@ -195,21 +202,35 @@ deleteEventLog = deleteCascade
 -- | Import raw event log from memory 
 importEventLog :: EventLog -> SqlPersistT IO EventLogId
 importEventLog (EventLog (E.Header types) (Data es)) = do 
-  i <- insert EventLogImpl
+  i <- insert $ EventLogImpl (Just 0) Nothing Nothing
+  let total = fromIntegral $ length types + length es
   mapM_ (void . addEventLogType i) types
+  let typesPart = fromIntegral (length types) / total 
+  update i [EventLogImplImport =. Just typesPart]
   mapM_ (void . addEventLogEvent i) es
+  let eventsPart = fromIntegral (length es) / total 
+  update i [EventLogImplImport =. Just eventsPart]
   return $ fromKey i 
 
 -- | Parse raw event log and import it incrementaly
-importEventLogInc :: B.ByteString -> SqlPersistT IO (Either String EventLogId)
+importEventLogInc :: B.ByteString -> SqlPersistT IO (Either ParseExit EventLogId)
 importEventLogInc bs = do 
-  i <- insert EventLogImpl
+  i <- insert $ EventLogImpl (Just 0) Nothing Nothing
   res <- parseEventLogInc bs $ consumer i
+  case res of 
+    Left ParseCancel -> delete i 
+    Left (ParseError er) -> update i [EventLogImplImportFailed =. Just er]
+    _ -> return ()
   return $ const (fromKey i) <$> res
   where 
-  consumer i r = case r of 
-    ParseHeader (E.Header types) -> mapM_ (void . addEventLogType i) types
-    ParseEvent e -> void $ addEventLogEvent i e 
+  consumer i p r = do
+    canceled <- isImportCanceled i
+    unless canceled $ do
+      updateImportPercent i p
+      case r of 
+        ParseHeader (E.Header types) -> mapM_ (void . addEventLogType i) types
+        ParseEvent e -> void $ addEventLogEvent i e 
+    return canceled
 
 -- | Parse eventlog from memory, allow partial logs
 parseEventLog :: B.ByteString -> Either String EventLog 
@@ -236,29 +257,89 @@ data ParseStage =
     ParseEvent !E.Event 
   | ParseHeader !E.Header
 
+-- | Helper data type for `parseEventLogInc`
+data ParseExit = ParseError String | ParseCancel 
+
 -- | Parse eventlog incrementally from memory, allow partial logs
 parseEventLogInc :: B.ByteString -- ^ Data of log
-  -> (ParseStage -> SqlPersistT IO ()) -- ^ Reaction to partial result
-  -> SqlPersistT IO (Either String ())
+  -> (Double -> ParseStage -> SqlPersistT IO Bool) 
+    -- ^ Reaction to partial result, first parameter is percent of completion.
+    -- If method returns 'False' the parsing is stopped.
+  -> SqlPersistT IO (Either ParseExit ())
 parseEventLogInc bs consumer = do
-  res <- foldlM parseChunk (Right E.newParserState) $ B.toChunks bs
+  (res, _) <- foldlM parseChunk (Right E.newParserState, 0) $ B.toChunks bs
   case res of 
     Left er -> return $ Left er 
     Right parser -> case E.readHeader parser of 
-      Nothing -> return $ Left "Missing header"
+      Nothing -> return $ Left $ ParseError "Missing header"
       Just h -> do
-        consumer $ ParseHeader h 
-        return $ Right ()
+        cancel <- consumer 1.0 $ ParseHeader h 
+        return $ if cancel then Left ParseCancel
+          else Right ()
   where 
-  parseChunk (Left er) _ = return $ Left er 
-  parseChunk (Right !p) !chunk = go $ p `E.pushBytes` chunk
+  totalLength = fromIntegral (B.length bs)
+  parseChunk acc@(Left _, _) _ = return acc
+  parseChunk (Right !p, !compl) !chunk = do
+    p' <- go $ p `E.pushBytes` chunk
+    return (p', compl')
     where 
+    compl' = compl + fromIntegral (BS.length chunk) / totalLength
     go !parser = do 
       let (res, parser') = E.readEvent parser 
       case res of 
         E.Item e -> do
-          consumer $ ParseEvent e
-          go parser'
+          cancel <- consumer compl' $ ParseEvent e
+          if cancel then return $ Left ParseCancel
+            else go parser'
         E.Incomplete -> return $ Right parser'
         E.Complete -> return $ Right parser'
-        E.ParseError err -> return $ Left err
+        E.ParseError err -> return . Left $ ParseError err
+
+-- | Version of 'importingList' with authorisation checks for 
+-- server implementation
+importingListMethod :: MToken' '["read-eventlog"] -- ^ Authorisation token
+  -> App [EventLogImport]
+importingListMethod token = do 
+  guardAuthToken token 
+  runDB importingList 
+
+-- | Get list of logs that are currently imports
+--
+-- Canceled imports aren't returned.
+importingList :: SqlPersistT IO [EventLogImport]
+importingList = do
+  elogs <- selectList [
+      EventLogImplImport !=. Nothing
+    , EventLogImplImportCancel ==. Nothing] []
+  return $ flip fmap elogs $ \(Entity i EventLogImpl{..}) -> EventLogImport {
+      eventLogImportId = fromKey i 
+    , eventLogImportPercent = fromMaybe 0 eventLogImplImport
+    , eventLogImportError = eventLogImplImportFailed
+    }
+
+-- | Version of 'importingCancel' with authorisation checks for 
+-- server implementation
+importingCancelMethod :: EventLogId 
+  ->  MToken' '["write-eventlog"]
+  -> App Unit 
+importingCancelMethod i token = do 
+  guardAuthToken token 
+  runDB $ importingCancel i
+  return Unit
+
+-- | Cancel import process for givent eventlog
+importingCancel :: EventLogId -> SqlPersistT IO ()
+importingCancel i = do 
+  mlog <- get (toKey i :: EventLogImplId)
+  whenJust mlog $ \_ -> 
+    update (toKey i) [EventLogImplImportCancel =. Just True]
+
+-- | Checks wether eventlog import is canceled
+isImportCanceled :: EventLogImplId -> SqlPersistT IO Bool
+isImportCanceled i = do 
+  me <- get i 
+  return $ maybe False (fromMaybe False . eventLogImplImportCancel) me
+
+-- | Update state of import of eventlog
+updateImportPercent :: EventLogImplId -> Double -> SqlPersistT IO ()
+updateImportPercent i p = update i [EventLogImplImport =. Just p]
