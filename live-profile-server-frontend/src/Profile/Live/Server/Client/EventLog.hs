@@ -1,15 +1,22 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Profile.Live.Server.Client.EventLog(
+  -- * Server API
     eventsList
   , downloadEventLog
+  , deleteEventLog
+  , importingList
+  , importingCancel
+  -- * Widget
   , eventLogWidget
   ) where 
 
 import Control.Monad 
 import Control.Monad.Trans.Either
+import Data.Aeson.Unit
 import Data.Aeson.WithField
 import Data.Text (Text)
+import GHCJS.Marshal
 import Reflex 
 import Reflex.Dom 
 import Servant.API as S
@@ -35,19 +42,39 @@ eventsList :: EventLogId
   -> MToken' '["read-eventlog"]
   -> EitherT ServantError IO (PagedList (Id E.Event) E.Event) 
 
+-- | Getting list of logs being importing
+importingList :: MToken' '["read-eventlog"]
+  -> EitherT ServantError IO [EventLogImport]
+
+-- | Canceling eventlog import
+importingCancel :: EventLogId
+  -> MToken' '["write-eventlog"]
+  -> EitherT ServantError IO Unit
+
 downloadEventLog :: EventLogId
 --  -> MToken' '["read-eventlog"]
   -> EitherT ServantError IO (
       Headers '[S.Header "Content-Disposition" Text] 
         EventLogFile)
 
+-- | Deleting eventlog from server
+deleteEventLog :: EventLogId 
+  -> MToken' '["delete-eventlog"]
+  -> EitherT ServantError IO Unit
+
 (      eventsList 
   :<|> downloadEventLog
+  :<|> importingList
+  :<|> importingCancel
+  :<|> deleteEventLog
   ) = client eventLogAPI Nothing
 
 instance GHCJSUnrender OctetStream EventLogFile where 
   --ghcjsUnrender :: Proxy ctype -> JSVal -> IO (Either String a)
   ghcjsUnrender _ _ = return $ Left "Unsupported"
+
+instance FromJSVal EventLogImport where 
+  fromJSVal = fromJSVal_aeson
 
 -- | Widget to display raw eventlog
 eventLogWidget :: forall t m . MonadWidget t m 

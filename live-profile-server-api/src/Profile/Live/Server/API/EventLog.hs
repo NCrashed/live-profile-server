@@ -53,6 +53,7 @@ instance ToSchema EventLogFile where
 -- | Info about imports
 data EventLogImport = EventLogImport {
   eventLogImportId :: !EventLogId 
+, eventLogImportFileName :: !String
 , eventLogImportPercent :: !Double 
 , eventLogImportError :: !(Maybe String)
 } deriving (Generic)
@@ -88,6 +89,10 @@ type EventLogAPI = "eventlog" :> (
     :> Capture "eventlog" EventLogId 
     :> TokenHeader' '["write-eventlog"]
     :> Post '[JSON] Unit 
+  -- Delete eventlog
+  :<|> Capture "eventlog" EventLogId
+    :> TokenHeader' '["delete-eventlog"]
+    :> Delete '[JSON] Unit
   )
 
 -- | Value to carry type 'EventLogAPI' around

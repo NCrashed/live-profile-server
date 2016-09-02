@@ -44,6 +44,7 @@ import Profile.Live.Server.Client.Async
 import Profile.Live.Server.Client.Bined
 import Profile.Live.Server.Client.Bootstrap.Button
 import Profile.Live.Server.Client.Bootstrap.Modal
+import Profile.Live.Server.Client.Bootstrap.Panel
 import Profile.Live.Server.Client.Bootstrap.Progress
 import Profile.Live.Server.Client.EventLog
 import Profile.Live.Server.Client.Pagination
@@ -115,6 +116,21 @@ getSessionDelete a = case a of
   SessionDelete i -> Just i 
   _ -> Nothing 
 
+-- | Actions that used internally in import widget
+data ImportAction = 
+    ImportDelete EventLogId 
+  | ImportCancel EventLogId 
+  deriving (Eq, Show)
+
+getImportDelete :: ImportAction -> Maybe EventLogId
+getImportDelete a = case a of 
+  ImportDelete i -> Just i 
+  _ -> Nothing 
+
+getImportCancel :: ImportAction -> Maybe EventLogId
+getImportCancel a = case a of 
+  ImportCancel i -> Just i 
+  _ -> Nothing 
 
 -- | Render list of sessions with pagination
 sessionsWidget :: forall t m . MonadWidget t m 
@@ -133,7 +149,7 @@ sessionsWidget token backW conn = do
   connectedE <- connectRequest connectE 
   importedE <- localImportRequest locImportE
 
-  debugProgressBar 
+  importWidget
 
   rec 
     let reloadE = leftmost [
@@ -160,8 +176,8 @@ sessionsWidget token backW conn = do
   where 
 
   renderSession :: WithId (Id Session) Session -> m (Event t SessionAction)
-  renderSession (WithField sid sess) = elClass "div" "panel panel-default" $ do 
-    elClass "div" "panel-body" $ do
+  renderSession (WithField sid sess) = panel $ do 
+    panelBody $ do
       let start = sess ^. rlens (Proxy :: Proxy '("start", UTCTime)) . rfield
           end = sess ^. rlens (Proxy :: Proxy '("end", Maybe UTCTime)) . rfield
           logi = sess ^. rlens (Proxy :: Proxy '("log", EventLogId)) . rfield
@@ -208,3 +224,65 @@ sessionsWidget token backW conn = do
   deleteRequest e = simpleRequest e $ \sess -> do 
     _ <- sessionDelete sess (Just (Token token))
     return sess
+
+  importingRequest :: Event t a -> m (Event t [EventLogImport])
+  importingRequest e = simpleRequest e $ const $ 
+    importingList (Just (Token token))
+
+  importingCancelRequest :: Event t EventLogId -> m (Event t EventLogId)
+  importingCancelRequest e = simpleRequest e $ \i -> do 
+    _ <- importingCancel i (Just (Token token))
+    return i
+
+  eventLogDeleteRequest :: Event t EventLogId -> m (Event t EventLogId)
+  eventLogDeleteRequest e = simpleRequest e $ \i -> do 
+    _ <- deleteEventLog i (Just (Token token))
+    return i
+
+  -- Display logs that are importing now
+  importWidget :: m ()
+  importWidget = do 
+    initialE <- getPostBuild
+    updateE <- periodical (fromIntegral (5 :: Int) :: NominalDiffTime)
+
+    rec 
+      importDataE <- importingRequest $ leftmost [
+          const () <$> canceledE
+        , const () <$> deletedE
+        , updateE
+        , initialE] 
+      actionE <- fmap switchPromptlyDyn $ 
+        widgetHold (pure never) $ renderImports <$> importDataE
+
+      let cancelE = fmapMaybe getImportCancel actionE
+      canceledE <- importingCancelRequest cancelE
+
+      let deleteE = fmapMaybe getImportDelete actionE
+      deletedE <- importingCancelRequest deleteE
+
+    return ()
+    where 
+    renderImports :: [EventLogImport] -> m (Event t ImportAction)
+    renderImports es = do 
+      elAttr "div" [("style", "margin-top: 10px;")] $ return ()
+      cancelEvents <- mapM renderImport es 
+      return $ leftmost cancelEvents
+
+    renderImport :: EventLogImport -> m (Event t ImportAction)
+    renderImport EventLogImport{..} = panel . panelBody $ do
+      el "p" $ elAttr "span" [("style", "font-weight: bold;")] $ 
+        text $ "Importing " ++ eventLogImportFileName
+      _ <- progressBar $ constPercentProgress eventLogImportPercent ProgressInfo True
+      case eventLogImportError of 
+        Just err -> do
+          el "p" $ 
+            elAttr "span" [("style", "font-weight: bold; color: rgb(234,67,53)")] $ 
+              text $ "Error: " <> show err 
+          fmap (const $ ImportDelete eventLogImportId) <$> redButton "Delete"
+        Nothing -> do 
+          e <- redButton "Cancel"
+          return $ const (ImportCancel eventLogImportId) <$> e
+
+
+
+

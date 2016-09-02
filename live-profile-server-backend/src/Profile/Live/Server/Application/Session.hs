@@ -280,14 +280,14 @@ importLocalMethod :: Id Connection
   -> App Unit
 importLocalMethod i token = do 
   guardAuthToken token 
-  importLocal i
+  _ <- appFork "Import: " $ importLocal i
   return Unit
 
 -- | Importing a eventlog for connection with creation of fake session
-importFakeSession :: Id Connection -> B.ByteString -> SqlPersistT IO (Either ParseExit (Id Session))
-importFakeSession cid elog = do 
+importFakeSession :: Id Connection -> FilePath -> B.ByteString -> App (Either ParseExit (Id Session))
+importFakeSession cid fn elog = do 
   -- Import eventlog
-  meid <- importEventLogInc elog
+  meid <- importEventLogInc fn elog
   case meid of 
     Left er -> return $ Left er
     Right eid -> do 
@@ -300,7 +300,7 @@ importFakeSession cid elog = do
               :& Field eid
               :& Field Nothing
               :& RNil
-      VKey sessId <- insert sess 
+      VKey sessId <- runDB $ insert sess 
       return $ Right sessId 
 
 -- | Import all eventlog files from server special folder
@@ -327,7 +327,7 @@ importLocal i = do
 
   processFile name bs f fSucc = do 
     importLog $ "Importing file " <> showl name
-    res <- runDB (importFakeSession i bs)
+    res <- importFakeSession i name bs
     case res of 
       Left (ParseError er) -> fail er 
       _ -> return ()

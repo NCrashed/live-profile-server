@@ -15,6 +15,7 @@ module Profile.Live.Server.Monad(
   , App(..)
   , getAppRunner
   , runAppInIO
+  , appFork
   -- * Helpers
   -- ** Config helpers
   , getConfig
@@ -35,9 +36,10 @@ module Profile.Live.Server.Monad(
   , pagination
   ) where
 
-import Control.Concurrent                   (ThreadId)
+import Control.Concurrent                   (ThreadId, forkIO)
 import Control.Monad.Catch
 import Control.Monad.Except                 (ExceptT, MonadError, runExceptT)
+import Control.Monad.IO.Class
 import Control.Monad.State.Strict as S
 import Data.Maybe
 import Data.Monoid                          ((<>))
@@ -55,6 +57,7 @@ import qualified Data.HashMap.Strict as H
 import qualified Data.Text as T 
 import qualified Data.Text.Encoding as T 
 
+import Profile.Live.Protocol.Utils
 import Profile.Live.Server.API.Session 
 import Profile.Live.Server.Config
 import Profile.Live.Server.Config.Auth 
@@ -163,6 +166,12 @@ runAppInIO st = printException . flip evalStateT st . runApp
     case r of 
       Left er -> fail $ show er 
       Right a -> return a
+
+-- | Fork a thread in 'App' monad
+appFork :: String -> App a -> App ThreadId 
+appFork label m = do 
+  run <- getAppRunner
+  liftIO . forkIO . printExceptions label . run . void $ m
 
 -- | Retrieve mapping from session to threads from app state
 getSessions :: App SessionsMap

@@ -13,8 +13,11 @@ module Profile.Live.Server.Client.Utils(
   , danger
   , centered
   , whenJust
+  , periodical
   ) where 
 
+import Control.Monad.IO.Class
+import Data.Time 
 import Reflex
 import Reflex.Dom 
 
@@ -35,3 +38,10 @@ centered w = elAttr "div" [("style", "text-align: center;")] $
 whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
 whenJust Nothing _ = pure ()
 whenJust (Just a) f = f a 
+
+-- | Emit event periodical
+periodical :: MonadWidget t m => NominalDiffTime -> m (Event t ())
+periodical dt = do 
+  t <- liftIO getCurrentTime
+  tickE <- tickLossy dt t
+  return $ fmap (const ()) tickE

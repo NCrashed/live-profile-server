@@ -19,6 +19,7 @@ module Profile.Live.Server.Client.Bootstrap.Progress(
   , HasNowValue(..)
   , HasStyle(..)
   , defaultProgressConfig
+  , constPercentProgress
   -- * Widget
   , ProgressBar(..)
   , HasNowValue(..)
@@ -28,6 +29,7 @@ module Profile.Live.Server.Client.Bootstrap.Progress(
 
 import Control.Lens 
 import Control.Monad.IO.Class
+import Data.Monoid 
 import Data.Time 
 import GHC.Generics 
 import Reflex
@@ -131,3 +133,14 @@ debugProgressBar = do
   return ()
   where
   show2f = printf "%.2f"
+
+-- | Special config for percentage static progress bar
+constPercentProgress :: (Reflex t, Num a, Fractional a, PrintfArg a)
+  => a -- ^ Current value
+  -> ProgressStyle -- ^ Color style
+  -> Bool -- ^ Striped render
+  -> ProgressConfig t a
+constPercentProgress a style striped = ProgressConfig 0 1.0 
+  (constDyn a) style striped show2f
+  where
+  show2f = (<> "%") . printf "%.2f" . (*100)

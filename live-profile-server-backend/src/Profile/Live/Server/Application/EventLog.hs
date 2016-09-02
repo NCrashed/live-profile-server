@@ -68,10 +68,74 @@ eventLogServer = listEvents
   :<|> downloadEventLog
   :<|> importingListMethod
   :<|> importingCancelMethod
+  :<|> deleteEventLogMethod
+
+-- | Getting events from server with pagination
+listEvents :: EventLogId
+  -> Maybe Page 
+  -> Maybe PageSize
+  -> MToken' '["read-eventlog"]
+  -> App (PagedList (Id Event) Event)
+listEvents ei mp msize token = do 
+  guardAuthToken token 
+  pagination mp msize $ \page size -> do 
+    let filters = [
+            EventImplEventLog ==. toKey ei 
+          ]
+    (es, total) <- runDB $ (,)
+      <$> (do
+        (is :: [Key EventImpl]) <- selectKeysList filters [Asc EventImplTime, OffsetBy (fromIntegral $ page * size), LimitTo (fromIntegral size)]
+        forM is $ (\i -> fmap (WithField (Id $ fromKey i)) <$> readEvent i))
+      <*> count filters
+    return PagedList {
+        pagedListItems = catMaybes es
+      , pagedListPages = ceiling $ (fromIntegral total :: Double) / fromIntegral size
+      }
+
+-- | Version of 'importingList' with authorisation checks for 
+-- server implementation
+importingListMethod :: MToken' '["read-eventlog"] -- ^ Authorisation token
+  -> App [EventLogImport]
+importingListMethod token = do 
+  guardAuthToken token 
+  runDB importingList 
+
+-- | Version of 'importingCancel' with authorisation checks for 
+-- server implementation
+importingCancelMethod :: EventLogId 
+  ->  MToken' '["write-eventlog"]
+  -> App Unit 
+importingCancelMethod i token = do 
+  guardAuthToken token 
+  runDB $ importingCancel i
+  return Unit
+
+-- | Server method implementation for `deleteEventLog` with 
+-- authorisation
+deleteEventLogMethod :: EventLogId 
+  -> MToken' '["delete-eventlog"]
+  -> App Unit  
+deleteEventLogMethod i token = do 
+  guardAuthToken token 
+  runDB $ deleteEventLog $ toKey i 
+  return Unit
+
+-- | Downloading eventlog file from the server
+downloadEventLog :: EventLogId -- ^ Id of log
+--  -> MToken' '["read-eventlog"] -- ^ Authorisation token
+  -> App (Headers '[S.Header "Content-Disposition" Text]
+      EventLogFile)
+downloadEventLog i {-token-} = do 
+--  guardAuthToken token 
+  elog <- runDB404 "event log" $ readEventLog (toKey i)
+  let payload = B.runPut $ putEventLog elog 
+  let filename = showt i <> ".eventlog"
+  let hdr = "attachment; filename=\"" <> filename <> "\""
+  return $ addHeader hdr $ EventLogFile payload
 
 -- | Insert empty eventlog
 startEventLog :: SqlPersistT IO EventLogImplId
-startEventLog = insert $ EventLogImpl Nothing Nothing Nothing
+startEventLog = insert $ EventLogImpl Nothing Nothing Nothing Nothing
 
 -- | Insert event type into eventlog being recording
 addEventLogType :: EventLogImplId -> EventType -> SqlPersistT IO EventTypeImplId
@@ -159,67 +223,34 @@ readEventLog i = do
       es <- readEventLogEvents i
       return $ Just $ EventLog (E.Header ets) (Data es)
 
--- | Getting events from server with pagination
-listEvents :: EventLogId
-  -> Maybe Page 
-  -> Maybe PageSize
-  -> MToken' '["read-eventlog"]
-  -> App (PagedList (Id Event) Event)
-listEvents ei mp msize token = do 
-  guardAuthToken token 
-  pagination mp msize $ \page size -> do 
-    let filters = [
-            EventImplEventLog ==. toKey ei 
-          ]
-    (es, total) <- runDB $ (,)
-      <$> (do
-        (is :: [Key EventImpl]) <- selectKeysList filters [Asc EventImplTime, OffsetBy (fromIntegral $ page * size), LimitTo (fromIntegral size)]
-        forM is $ (\i -> fmap (WithField (Id $ fromKey i)) <$> readEvent i))
-      <*> count filters
-    return PagedList {
-        pagedListItems = catMaybes es
-      , pagedListPages = ceiling $ (fromIntegral total :: Double) / fromIntegral size
-      }
-
--- | Downloading eventlog file from the server
-downloadEventLog :: EventLogId -- ^ Id of log
---  -> MToken' '["read-eventlog"] -- ^ Authorisation token
-  -> App (Headers '[S.Header "Content-Disposition" Text]
-      EventLogFile)
-downloadEventLog i {-token-} = do 
---  guardAuthToken token 
-  elog <- runDB404 "event log" $ readEventLog (toKey i)
-  let payload = B.runPut $ putEventLog elog 
-  let filename = showt i <> ".eventlog"
-  let hdr = "attachment; filename=\"" <> filename <> "\""
-  return $ addHeader hdr $ EventLogFile payload
-
 -- | Cascade deletion of all particular eventlog info
 deleteEventLog :: EventLogImplId -- ^ Id of log
   -> SqlPersistT IO ()
 deleteEventLog = deleteCascade
 
 -- | Import raw event log from memory 
-importEventLog :: EventLog -> SqlPersistT IO EventLogId
-importEventLog (EventLog (E.Header types) (Data es)) = do 
-  i <- insert $ EventLogImpl (Just 0) Nothing Nothing
+importEventLog :: FilePath -> EventLog -> App EventLogId
+importEventLog p (EventLog (E.Header types) (Data es)) = do 
+  i <- runDB $ insert $ EventLogImpl (Just 0) (Just p) Nothing Nothing
   let total = fromIntegral $ length types + length es
-  mapM_ (void . addEventLogType i) types
-  let typesPart = fromIntegral (length types) / total 
-  update i [EventLogImplImport =. Just typesPart]
-  mapM_ (void . addEventLogEvent i) es
-  let eventsPart = fromIntegral (length es) / total 
-  update i [EventLogImplImport =. Just eventsPart]
+  runDB $ do
+    mapM_ (void . addEventLogType i) types
+    let typesPart = fromIntegral (length types) / total 
+    update i [EventLogImplImport =. Just typesPart]
+  runDB $ do
+    mapM_ (void . addEventLogEvent i) es
+    let eventsPart = fromIntegral (length es) / total 
+    update i [EventLogImplImport =. Just eventsPart]
   return $ fromKey i 
 
 -- | Parse raw event log and import it incrementaly
-importEventLogInc :: B.ByteString -> SqlPersistT IO (Either ParseExit EventLogId)
-importEventLogInc bs = do 
-  i <- insert $ EventLogImpl (Just 0) Nothing Nothing
+importEventLogInc :: FilePath -> B.ByteString -> App (Either ParseExit EventLogId)
+importEventLogInc fn bs = do 
+  i <- runDB $ insert $ EventLogImpl (Just 0) (Just fn) Nothing Nothing
   res <- parseEventLogInc bs $ consumer i
   case res of 
-    Left ParseCancel -> delete i 
-    Left (ParseError er) -> update i [EventLogImplImportFailed =. Just er]
+    Left ParseCancel -> runDB $ delete i 
+    Left (ParseError er) -> runDB $ update i [EventLogImplImportFailed =. Just er]
     _ -> return ()
   return $ const (fromKey i) <$> res
   where 
@@ -265,7 +296,7 @@ parseEventLogInc :: B.ByteString -- ^ Data of log
   -> (Double -> ParseStage -> SqlPersistT IO Bool) 
     -- ^ Reaction to partial result, first parameter is percent of completion.
     -- If method returns 'False' the parsing is stopped.
-  -> SqlPersistT IO (Either ParseExit ())
+  -> App (Either ParseExit ())
 parseEventLogInc bs consumer = do
   (res, _) <- foldlM parseChunk (Right E.newParserState, 0) $ B.toChunks bs
   case res of 
@@ -273,7 +304,7 @@ parseEventLogInc bs consumer = do
     Right parser -> case E.readHeader parser of 
       Nothing -> return $ Left $ ParseError "Missing header"
       Just h -> do
-        cancel <- consumer 1.0 $ ParseHeader h 
+        cancel <- runDB $ consumer 1.0 $ ParseHeader h 
         return $ if cancel then Left ParseCancel
           else Right ()
   where 
@@ -288,20 +319,14 @@ parseEventLogInc bs consumer = do
       let (res, parser') = E.readEvent parser 
       case res of 
         E.Item e -> do
-          cancel <- consumer compl' $ ParseEvent e
+          cancel <- runDB $ consumer compl' $ ParseEvent e
           if cancel then return $ Left ParseCancel
             else go parser'
         E.Incomplete -> return $ Right parser'
         E.Complete -> return $ Right parser'
         E.ParseError err -> return . Left $ ParseError err
 
--- | Version of 'importingList' with authorisation checks for 
--- server implementation
-importingListMethod :: MToken' '["read-eventlog"] -- ^ Authorisation token
-  -> App [EventLogImport]
-importingListMethod token = do 
-  guardAuthToken token 
-  runDB importingList 
+
 
 -- | Get list of logs that are currently imports
 --
@@ -313,19 +338,10 @@ importingList = do
     , EventLogImplImportCancel ==. Nothing] []
   return $ flip fmap elogs $ \(Entity i EventLogImpl{..}) -> EventLogImport {
       eventLogImportId = fromKey i 
+    , eventLogImportFileName = fromMaybe "unknown" eventLogImplImportFileName
     , eventLogImportPercent = fromMaybe 0 eventLogImplImport
     , eventLogImportError = eventLogImplImportFailed
     }
-
--- | Version of 'importingCancel' with authorisation checks for 
--- server implementation
-importingCancelMethod :: EventLogId 
-  ->  MToken' '["write-eventlog"]
-  -> App Unit 
-importingCancelMethod i token = do 
-  guardAuthToken token 
-  runDB $ importingCancel i
-  return Unit
 
 -- | Cancel import process for givent eventlog
 importingCancel :: EventLogId -> SqlPersistT IO ()
@@ -343,3 +359,4 @@ isImportCanceled i = do
 -- | Update state of import of eventlog
 updateImportPercent :: EventLogImplId -> Double -> SqlPersistT IO ()
 updateImportPercent i p = update i [EventLogImplImport =. Just p]
+

@@ -52,6 +52,7 @@ share [mkPersist sqlSettings
      , mkMigrate "migrateAll"] [persistLowerCase|
 EventLogImpl
   import Double Maybe -- percent of import
+  importFileName String Maybe -- name of import file
   importCancel Bool Maybe -- the import was canceled
   importFailed String Maybe -- the import was failed
 
