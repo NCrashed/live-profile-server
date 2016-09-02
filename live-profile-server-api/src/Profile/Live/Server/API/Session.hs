@@ -75,6 +75,11 @@ type SessionAPI = "session" :> (
     :> Capture "session-id" (Id Session) 
     :> TokenHeader' '["connect-session"]
     :> Post '[JSON] Unit
+  -- Load from file from special folder of server
+  :<|> "import" :> "local" 
+    :> Capture "connection" (Id Connection)
+    :> TokenHeader' '["write-session"]
+    :> Post '[JSON] Unit
   )
 
 -- Needed due bug with `Can't find interface-file declaration for variable $tc'(,)`

@@ -15,6 +15,7 @@ module Profile.Live.Server.Client.Session(
   , sessionList
   , sessionConnect
   , sessionDisconnect
+  , sessionLocalImport
   -- * Widgets
   , sessionsWidget
   ) where 
@@ -72,11 +73,17 @@ sessionDisconnect :: Id Session
   -> MToken' '["connect-session"]
   -> EitherT ServantError IO Unit
 
+-- | Initiate server side import from folder
+sessionLocalImport :: Id Connection 
+  -> MToken' '["write-session"]
+  -> EitherT ServantError IO Unit 
+
 (      sessionGet
   :<|> sessionDelete
   :<|> sessionList
   :<|> sessionConnect
   :<|> sessionDisconnect
+  :<|> sessionLocalImport
     ) = client sessionAPI Nothing
 
 -- | Actions that used internaly in widget
@@ -116,15 +123,21 @@ sessionsWidget :: forall t m . MonadWidget t m
   -> m (Route t m)
 sessionsWidget token backW conn = do 
   header "Sessions"
-  (backE, connectE) <- centered $ buttonGroup $ do 
+  (backE, connectE, locImportE) <- centered $ buttonGroup $ do 
     backE <- blueButton "Back"
     connectE <- fmap (const conn) <$> blueButton "Connect"
-    return (backE, connectE)
+    locImportE <- fmap (const conn) <$> blueButton "Local import"
+    return (backE, connectE, locImportE)
 
   connectedE <- connectRequest connectE 
+  importedE <- localImportRequest locImportE
 
   rec 
-    let reloadE = leftmost [connectedE, disconnectedE, deletedE]
+    let reloadE = leftmost [
+            const () <$> connectedE
+          , const () <$> disconnectedE
+          , const () <$> deletedE
+          , importedE]
     sessEvent <- renderListReload (Just 10) renderSession requestSessions reloadE
 
     let disconnectE = fmapMaybe getSessionDisconnect sessEvent
@@ -177,6 +190,11 @@ sessionsWidget token backW conn = do
   connectRequest e = simpleRequest e $ \conn -> do 
     OnlyField i <- sessionConnect conn (Just (Token token))
     return i
+
+  localImportRequest :: Event t (Id Connection) -> m (Event t ())
+  localImportRequest e = simpleRequest e $ \conn -> do 
+    _ <- sessionLocalImport conn (Just (Token token))
+    return ()
 
   disconnectRequest :: Event t (Id Session) -> m (Event t (Id Session))
   disconnectRequest e = simpleRequest e $ \sess -> do 

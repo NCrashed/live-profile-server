@@ -13,11 +13,13 @@ module Profile.Live.Server.Application.Session(
   , getRunningSessions
   , sanitizeSessions
   , importFakeSession
+  , importLocal
   ) where
 
 import Control.Lens 
 import Control.Monad 
-import Control.Monad.IO.Class 
+import Control.Monad.Catch
+import Control.Monad.IO.Class
 import Data.Aeson.Unit
 import Data.Aeson.WithField
 import Data.Maybe 
@@ -38,11 +40,15 @@ import Servant.API.REST.Derive.Server
 import Servant.API.REST.Derive.Server.Vinyl
 import Servant.Server
 import Servant.Server.Auth.Token 
+import System.Directory
+import System.Directory.Tree
+import System.FilePath
 import System.Socket 
 import System.Socket.Family.Inet6
 import System.Socket.Protocol.TCP
 import System.Socket.Type.Stream
 
+import qualified Data.ByteString.Lazy as B
 import qualified Data.HashMap.Strict as H
 
 import Profile.Live.Client
@@ -50,6 +56,7 @@ import Profile.Live.Server.API.Connection
 import Profile.Live.Server.API.EventLog
 import Profile.Live.Server.API.Session 
 import Profile.Live.Server.Application.EventLog
+import Profile.Live.Server.Config
 import Profile.Live.Server.Error
 import Profile.Live.Server.Monad 
 import Profile.Live.Server.Utils
@@ -63,6 +70,7 @@ sessionServer = restServer (Proxy :: Proxy '[ 'GET ])
   :<|> listSessions
   :<|> connectMethod
   :<|> disconnectMethod
+  :<|> importLocalMethod
 
 -- | Deleteion of session from server
 deleteSessionMethod :: Id Session 
@@ -266,6 +274,15 @@ deleteSession i = do
       deleteEventLog $ toKey logi
       deleteResource i 
 
+-- | Import all eventlog files from server special folder
+importLocalMethod :: Id Connection 
+  -> MToken' '["write-session"]
+  -> App Unit
+importLocalMethod i token = do 
+  guardAuthToken token 
+  importLocal i
+  return Unit
+
 -- | Importing a eventlog for connection with creation of fake session
 importFakeSession :: Id Connection -> EventLog -> SqlPersistT IO (Id Session)
 importFakeSession cid elog = do 
@@ -283,3 +300,35 @@ importFakeSession cid elog = do
           :& RNil
   VKey sessId <- insert sess 
   return sessId 
+
+-- | Import all eventlog files from server special folder
+importLocal :: Id Connection -> App ()
+importLocal i = do 
+  ImportConfig{..} <- getsConfig configImport
+  importLog $ "Start local import from " <> showl importConfigFolder
+  (_ :/ dTree) <- liftIO $ readDirectoryWithL B.readFile importConfigFolder
+  case dTree of 
+    Failed{..} -> importLog $ "Failed to open folder, reason: " <> showl err 
+    File{..} -> importLog "Failed, not a directory"
+    Dir{..} -> forM_ (flatFiles contents) $ \(nm, bs) ->
+      processFile nm bs importConfigFolder importConfigSuccess
+      `catchAll`   
+      (\e -> do
+        importLog $ "Failed: " <> showl e 
+        moveToFailure nm importConfigFolder importConfigFailure )
+  where 
+  importLog = appLog . (\s -> "Import: " <> s <> "\n") 
+
+  processFile name bs f fSucc = do 
+    importLog $ "Importing file " <> showl name
+    either fail (void . runDB . importFakeSession i) $ parseEventLog bs
+    moveToSuccess name f fSucc
+
+  moveToSuccess name f fSucc = liftIO $ renameFile (f </> name) (fSucc </> name)
+  moveToFailure name f fFail = liftIO $ renameFile (f </> name) (fFail </> name)
+
+  flatFiles nodes = catMaybes $ extractFile <$> nodes
+    where 
+    extractFile node = case node of 
+      File{..} -> Just (name, file)
+      _ -> Nothing

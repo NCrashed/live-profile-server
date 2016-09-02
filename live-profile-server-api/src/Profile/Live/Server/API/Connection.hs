@@ -19,7 +19,6 @@ module Profile.Live.Server.API.Connection(
   ) where 
 
 import Control.Lens
-import Data.Aeson.Unit
 import Data.Monoid
 import Data.Proxy
 import Data.Swagger
@@ -58,11 +57,6 @@ type ConnectionAPI = "connection" :> (
     :> PageSizeParam
     :> TokenHeader' '["read-connection"]
     :> Get '[JSON] (PagedList (Id Connection) Connection) 
-  -- Load from file from special folder of server
-  :<|> "import" :> "local" 
-    :> Capture "connection" (Id Connection)
-    :> TokenHeader' '["write-connection"]
-    :> Post '[JSON] Unit
   )
 
 -- Needed due bug with `Can't find interface-file declaration for variable $tc'(,)`

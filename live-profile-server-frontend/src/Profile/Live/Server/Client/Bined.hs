@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : Portable
 -}
 {-# LANGUAGE RecursiveDo #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Profile.Live.Server.Client.Bined(
   -- * Server API
     getFullBinedGraph
@@ -26,7 +27,6 @@ import Diagrams.Prelude as D
 import GHCJS.Marshal
 import Reflex as R
 import Reflex.Dom as R
-import Servant.API
 import Servant.API.Auth.Token
 import Servant.Client 
 import Text.Printf
@@ -41,8 +41,6 @@ import Profile.Live.Server.Client.Async
 import Profile.Live.Server.Client.Bootstrap.Button 
 import Profile.Live.Server.Client.Router 
 import Profile.Live.Server.Client.Utils 
-
-import Debug.Trace 
 
 -- | Get all info required to render bined graph for eventlog
 getFullBinedGraph :: EventLogId
