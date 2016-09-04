@@ -149,18 +149,6 @@ modal ModalConfig{..} bodyWidget footerWidget = do
     elClass "h4" "modal-title" $ text _modalCfgTitle
     return closeEv 
 
--- | Reference to global counter for unique id generation
-globalIdRef :: IORef Int 
-globalIdRef = unsafePerformIO $ newIORef 0
-{-# NOINLINE globalIdRef #-}
-
--- | Generate unique ids
-genId :: MonadIO m => m Int 
-genId = liftIO $ do 
-  i <- readIORef globalIdRef 
-  modifyIORef' globalIdRef (+1)
-  return i 
-
 -- | Help to create modal cancel button
 cancelModalBtn :: MonadWidget t m => String -> m (Event t ())
 cancelModalBtn title = do

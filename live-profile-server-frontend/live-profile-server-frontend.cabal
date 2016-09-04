@@ -34,11 +34,13 @@ library
     Profile.Live.Server.Client.Pagination
     Profile.Live.Server.Client.Router
     Profile.Live.Server.Client.Session
+    Profile.Live.Server.Client.Upload
     Profile.Live.Server.Client.Utils
   build-depends:       
       base                  >= 4.7      && < 5
     , aeson                 >= 0.9      && < 0.12
     , aeson-injector        >= 1.0.4    && < 1.1
+    , bytestring            >= 0.10     && < 0.11
     , colour                >= 2.3      && < 2.4
     , containers            >= 0.5      && < 0.6
     , data-default          >= 0.5      && < 0.6
@@ -48,6 +50,7 @@ library
     , either                >= 4.4      && < 4.5
     , ghc-events            >= 0.5      && < 0.6
     , ghcjs-base            >= 0.2      && < 0.3
+    , ghcjs-dom             >= 0.2      && < 0.3
     , ghcjs-servant-client  >= 1.1.1    && < 1.2
     , lens                  >= 4.13     && < 4.14
     , live-profile-server-api >= 0.1    && < 0.2
@@ -63,7 +66,7 @@ library
     , transformers          >= 0.4      && < 0.5
     , vector                >= 0.11     && < 0.12
     , vinyl                 >= 0.5      && < 0.6
-    
+
   default-language:    Haskell2010
   default-extensions:
     DataKinds
