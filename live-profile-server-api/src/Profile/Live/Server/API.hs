@@ -33,6 +33,7 @@ import Profile.Live.Server.API.Bined
 import Profile.Live.Server.API.Connection 
 import Profile.Live.Server.API.EventLog 
 import Profile.Live.Server.API.Session 
+import Profile.Live.Server.API.Upload
 
 -- | The live profile server consists of documented API and static file serving 
 type LiveProfileAPI = DocumentedLiveProfileAPI :<|> Raw
@@ -44,6 +45,7 @@ type CoreLiveProfileAPI =
   :<|> SessionAPI
   :<|> EventLogAPI
   :<|> BinedAPI
+  :<|> UploadAPI
 
 -- | Helper to pass around 'LiveProfileAPI'
 liveProfileAPI :: Proxy LiveProfileAPI
@@ -70,3 +72,4 @@ generateSwagger path = BS.writeFile path . encode $ toSwagger documentedLiveProf
   & applyTagsFor sessionOperations ["Session" & description ?~ "Session of a connection to profiled app"]
   & applyTagsFor eventLogOperations ["Event log" & description ?~ "Operations with raw events"]
   & applyTagsFor binedOperations ["Bined graph" & description ?~ "Operations with bined graph for event log"]
+  & applyTagsFor uploadOperations ["Upload file" & description ?~ "API for uploading huge files"]

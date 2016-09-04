@@ -23,6 +23,7 @@ library
     Profile.Live.Server.API.Connection
     Profile.Live.Server.API.EventLog
     Profile.Live.Server.API.Session
+    Profile.Live.Server.API.Upload
     Profile.Live.Server.Events
     Profile.Live.Server.Utils.DeriveJson
     Profile.Live.Server.Utils.Schema

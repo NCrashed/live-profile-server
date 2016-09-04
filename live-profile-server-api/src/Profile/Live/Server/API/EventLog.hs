@@ -99,7 +99,7 @@ type EventLogAPI = "eventlog" :> (
 eventLogAPI :: Proxy EventLogAPI 
 eventLogAPI = Proxy 
 
--- | Select only operations of the Session API
+-- | Select only operations of the eventlog API
 eventLogOperations :: Traversal' Swagger Operation
 eventLogOperations = operationsOf $ toSwagger eventLogAPI
 
