@@ -10,6 +10,7 @@ Portability : Portable
 module Profile.Live.Server.Config(
     Config(..)
   , ImportConfig(..)
+  , UploadConfig(..)
   , Environment(..)
   , setLogger
   , makePool
@@ -52,6 +53,18 @@ data ImportConfig = ImportConfig {
 
 $(deriveJSON (derivePrefix "importConfig") ''ImportConfig)
 
+-- | Sub configuration for uploading files to server
+data UploadConfig = UploadConfig {
+  -- | Folder where to place partial uploads
+  uploadConfigFolder :: FilePath
+  -- | Folder where to move successed uploads
+, uploadConfigSuccess :: FilePath 
+  -- | Maximum size of file, 'Nothing' means no restriction
+, uploadConfigMaxFileSize :: Maybe Word 
+} deriving (Generic, Show, Eq, Read)
+
+$(deriveJSON (derivePrefix "uploadConfig") ''UploadConfig)
+
 -- | The Config of server application that contains all required info to start a 
 -- SQL connection pool and tweakable behavior.
 data Config = Config {
@@ -69,6 +82,8 @@ data Config = Config {
 , configPageSize :: Word 
 -- | Configuration of eventlog import
 , configImport :: ImportConfig 
+-- | Configuration for uploading files on server
+, configUpload :: UploadConfig
 } deriving (Generic)
 
 $(deriveJSON (derivePrefix "config") ''Config)

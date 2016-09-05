@@ -34,6 +34,8 @@ library
     Profile.Live.Server.Application.EventLog
     Profile.Live.Server.Application.EventLog.Query
     Profile.Live.Server.Application.Session
+    Profile.Live.Server.Application.Upload
+    Profile.Live.Server.Application.Upload.Model
     Profile.Live.Server.Config
     Profile.Live.Server.Config.Auth
     Profile.Live.Server.Config.Database

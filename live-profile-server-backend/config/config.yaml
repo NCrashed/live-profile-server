@@ -21,6 +21,10 @@ import:
   success: "./import/success"
   failure: "./import/failure"
 
+upload:
+  folder: "./upload"
+  success: "./import"
+
 static: "./static/"
 port: 3000
 pageSize: 50

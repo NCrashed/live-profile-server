@@ -18,6 +18,7 @@ import Servant.API.REST.Derive.Server.Vinyl
 import Profile.Live.Server.API.Connection as Conn
 import Profile.Live.Server.API.Session
 import qualified Profile.Live.Server.Application.Bined.Model as Bined 
+import qualified Profile.Live.Server.Application.Upload.Model as Upload
 import qualified Profile.Live.Server.Events.Model as Events
 import qualified Servant.Server.Auth.Token.Model as Auth
 
@@ -28,6 +29,7 @@ doMigrations strength = do
     Auth.migrateAll
     Events.migrateAll
     Bined.migrateAll
+    Upload.migrateAll
     migrateVinyl (Proxy :: Proxy Conn.Connection)
     migrateVinyl (Proxy :: Proxy Session)
   Auth.ensureAdmin strength "admin" "admin" "admin@localhost"
