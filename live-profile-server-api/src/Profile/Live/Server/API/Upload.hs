@@ -19,7 +19,6 @@ module Profile.Live.Server.API.Upload(
   ) where 
 
 import Control.Lens
-import Data.Aeson
 import Data.Aeson.Unit
 import Data.Aeson.WithField
 import Data.Proxy 
@@ -93,6 +92,10 @@ type UploadAPI = "upload" :> (
     :> ReqBody '[JSON] UploadFileInfo
     :> TokenHeader' '["file-upload"]
     :> Post '[JSON] (OnlyId UploadId)
+  :<|> "file"
+    :> Capture "uploading" UploadId
+    :> TokenHeader' '["file-upload"]
+    :> Delete '[JSON] Unit 
   :<|> "chunk"
     :> Capture "uploading" UploadId
     :> Capture "num" ChunkNum
@@ -104,6 +107,17 @@ type UploadAPI = "upload" :> (
     :> ReqBody '[OctetStream] ChunkBytes
     :> TokenHeader' '["file-upload"]
     :> Post '[JSON] Unit
+  :<|> "files"
+    :> PageParam
+    :> PageSizeParam 
+    :> TokenHeader' '["file-upload"]
+    :> Get '[JSON] (PagedList UploadId UploadFileInfo) 
+  :<|> "chunks"
+    :> Capture "uploading" UploadId
+    :> PageParam
+    :> PageSizeParam
+    :> TokenHeader' '["file-upload"]
+    :> Get '[JSON] (PagedList ChunkNum Unit)
   )
 
 -- | Value to carry type 'EventLogAPI' around
