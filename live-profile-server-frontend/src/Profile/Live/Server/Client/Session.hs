@@ -141,7 +141,7 @@ sessionsWidget :: forall t m . MonadWidget t m
   -> Id Connection -- ^ Connection we want to view sessions to 
   -> m (Route t m)
 sessionsWidget token backW conn = do 
-  debugUploadFile
+  --debugUploadFile
   
   header "Sessions"
   (backE, connectE, locImportE) <- centered $ buttonGroup $ do 
