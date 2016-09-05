@@ -8,9 +8,11 @@ Stability   : experimental
 Portability : Portable
 -}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE RecordWildCards #-}
 module Profile.Live.Server.API.Upload(
     UploadId
   , UploadFileInfo(..)
+  , uploadFileChunksNum
   , ChunkNum
   , ChunkBytes(..)
   , UploadAPI
@@ -53,6 +55,11 @@ $(deriveJSON (derivePrefix "uploadFileInfo") ''UploadFileInfo)
 instance ToSchema UploadFileInfo where 
   declareNamedSchema = genericDeclareNamedSchema $
     schemaOptionsDropPrefix "uploadFileInfo"
+
+-- | Number of chunks needed to upload file
+uploadFileChunksNum :: UploadFileInfo -> Int 
+uploadFileChunksNum UploadFileInfo{..} = ceiling $ 
+  (fromIntegral uploadFileInfoSize :: Double) / (fromIntegral uploadFileInfoChunkSize)
 
 -- | Wrapper around raw bytes to generate proper swagger scheme for API
 newtype ChunkBytes = ChunkBytes { unChunkBytes :: BS.ByteString }

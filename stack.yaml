@@ -48,6 +48,7 @@ packages:
     - '.'
     - './live-profile-client'
     - './live-profile-protocol'
+    - './live-profile-leech'
 #- '../live-profile-monitor'
 #- '../live-profile-monitor/live-profile-client'
 #- '../live-profile-monitor/live-profile-protocol'

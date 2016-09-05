@@ -13,7 +13,7 @@
 		},
 		{
 			"name": "Stack test",
-			"shell_cmd": "stack test",
+			"shell_cmd": "stack test live-profile-server-backend",
 			"working_dir": "${project_path}"
 		},
 		{

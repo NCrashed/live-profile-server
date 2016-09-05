@@ -29,6 +29,8 @@ import qualified Data.ByteString.Lazy as BS
 -- | Distinctive code of error type
 data ErrorType = 
     Error'FailedResolveAddress
+  | Error'ResourceAlreadyExists
+  | Error'FileIsTooLarge
   deriving (Generic, Show, Eq, Read, Enum, Bounded, Ord)
 
 instance FromJSON ErrorType 

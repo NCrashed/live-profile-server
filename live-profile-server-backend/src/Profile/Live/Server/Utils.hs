@@ -9,20 +9,28 @@ Portability : Portable
 -}
 module Profile.Live.Server.Utils(
     showt
+  , whenM
   , whenNothing
   , whenJust
   , fromKey
   , toKey
   ) where
 
-import Database.Persist.Sql 
+import Control.Monad
 import Data.Text (Text)
+import Database.Persist.Sql 
 
 import qualified Data.Text as T  
 
 -- | Shortcut 'pack . show'
 showt :: Show a => a -> Text 
 showt = T.pack . show 
+
+-- | Lifted version of 'when'
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM action f = do 
+  b <- action
+  when b f 
 
 -- | Run action if 'Maybe' is 'Nothing'
 whenNothing :: Applicative m => Maybe a -> m () -> m ()
