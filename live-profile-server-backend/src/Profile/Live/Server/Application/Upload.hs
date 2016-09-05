@@ -23,7 +23,7 @@ import Servant.API.Auth.Token.Pagination
 import Servant.Server 
 import Servant.Server.Auth.Token 
 
-import qualified Data.ByteString as BS 
+import qualified Data.ByteString as BS
 
 import Profile.Live.Server.API.Upload 
 import Profile.Live.Server.Application.Upload.Model 
@@ -86,11 +86,12 @@ postChunkEndpoint :: UploadId -- ^ Id of uploading file
   -> ChunkBytes -- ^ Chunk binary content
   -> MToken' '["file-upload"] -- ^ Authorisation token
   -> App Unit 
-postChunkEndpoint i n (ChunkBytes bs) token = do 
+postChunkEndpoint i n chbytes token = do 
   guardAuthToken token 
   UploadConfig{..} <- getsConfig configUpload
   ui@UploadFileInfo{..} <- runDB404 "uploading" $ readUploadFileInfo i
   
+  let bs = fromChunkBytes chbytes
   when (BS.length bs > fromIntegral uploadFileInfoChunkSize) $ 
     throw400 $ "Wrong chunk size, greater (" <> showt (BS.length bs)
       <> ") than declared (" <> showt uploadFileInfoChunkSize <> ")"

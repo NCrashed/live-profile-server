@@ -15,6 +15,8 @@ module Profile.Live.Server.API.Upload(
   , uploadFileChunksNum
   , ChunkNum
   , ChunkBytes(..)
+  , toChunkBytes
+  , fromChunkBytes
   , UploadAPI
   , uploadAPI
   , uploadOperations
@@ -25,6 +27,8 @@ import Data.Aeson.Unit
 import Data.Aeson.WithField
 import Data.Proxy 
 import Data.Swagger
+import Data.Text 
+import Data.Text.Encoding 
 import GHC.Generics 
 import Servant.API 
 import Servant.API.Auth.Token
@@ -32,6 +36,7 @@ import Servant.API.Auth.Token.Pagination
 import Servant.Swagger 
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64 as B64 
 
 import Profile.Live.Server.Utils.DeriveJson
 import Profile.Live.Server.Utils.Schema 
@@ -61,14 +66,24 @@ uploadFileChunksNum :: UploadFileInfo -> Int
 uploadFileChunksNum UploadFileInfo{..} = ceiling $ 
   (fromIntegral uploadFileInfoSize :: Double) / (fromIntegral uploadFileInfoChunkSize)
 
--- | Wrapper around raw bytes to generate proper swagger scheme for API
-newtype ChunkBytes = ChunkBytes { unChunkBytes :: BS.ByteString }
-  deriving (Show, Eq, Generic, MimeRender OctetStream, MimeUnrender OctetStream)
+-- | Encoded base64 chunk of file
+data ChunkBytes = ChunkBytes { 
+  chunkBytesPayload :: Text
+} deriving (Show, Generic)
+
+$(deriveJSON (derivePrefix "chunkBytes") ''ChunkBytes)
 
 instance ToSchema ChunkBytes where 
-  declareNamedSchema _ = do 
-    return $ NamedSchema Nothing $ mempty 
-      & type_ .~ SwaggerString -- TODO: https://github.com/GetShopTV/swagger2/issues/76
+  declareNamedSchema = genericDeclareNamedSchema $
+    schemaOptionsDropPrefix "chunkBytes"
+
+-- | Convert contents of chunk into payload of request
+toChunkBytes :: BS.ByteString -> ChunkBytes 
+toChunkBytes = ChunkBytes . decodeUtf8 . B64.encode
+
+-- | Convert request payload into chunk contents
+fromChunkBytes :: ChunkBytes -> BS.ByteString
+fromChunkBytes = B64.decodeLenient . encodeUtf8 . chunkBytesPayload
 
 -- | Upload API specification.
 --
@@ -111,7 +126,7 @@ type UploadAPI = "upload" :> (
   :<|> "chunk"
     :> Capture "uploading" UploadId
     :> Capture "num" ChunkNum 
-    :> ReqBody '[OctetStream] ChunkBytes
+    :> ReqBody '[JSON] ChunkBytes
     :> TokenHeader' '["file-upload"]
     :> Post '[JSON] Unit
   :<|> "files"
