@@ -17,6 +17,10 @@ module Profile.Live.Server.Client.Utils(
   , periodical
   , whenPrev
   , genId
+  , widgetHoldEvent
+  , widgetHoldEvent'
+  , foldEvent
+  , approxEq
   ) where 
 
 import Control.Monad.IO.Class
@@ -74,3 +78,25 @@ genId = liftIO $ do
   i <- readIORef globalIdRef 
   modifyIORef' globalIdRef (+1)
   return i 
+
+-- | Wrapper around 'widgetHold' for widgets that produces events at output
+widgetHoldEvent :: MonadWidget t m => m (Event t a) -> Event t (m (Event t a)) -> m (Event t a)
+widgetHoldEvent initW we = do 
+  dynRes <- widgetHold initW we 
+  return $ switchPromptlyDyn dynRes 
+
+-- | Wrapper around 'widgetHold' for widgets that produces events at output
+widgetHoldEvent' :: MonadWidget t m => Event t (m (Event t a)) -> m (Event t a)
+widgetHoldEvent' we = do 
+  dynRes <- widgetHold (return never) we 
+  return $ switchPromptlyDyn dynRes 
+
+-- | Wrapper around 'foldDyn' to fold over events
+foldEvent :: MonadWidget t m => (a -> b -> b) -> b -> Event t a -> m (Event t b)
+foldEvent f b0 e = do 
+  dynB <- foldDyn f b0 e 
+  return $ updated dynB 
+
+-- | Approximately equality for floatings
+approxEq :: (Num a, Ord a, Fractional a) => a -> a -> Bool 
+approxEq a b = abs (a - b) < 0.00001

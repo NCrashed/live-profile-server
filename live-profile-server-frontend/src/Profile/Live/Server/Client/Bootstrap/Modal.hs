@@ -5,7 +5,7 @@ module Profile.Live.Server.Client.Bootstrap.Modal(
   , simpleModal
   , simpleValidateModal
   , confirm
-  , ModalId
+  , ModalId(..)
   , Modal(..)
   -- * Modal configuration
   , ModalConfig(..)
@@ -37,13 +37,11 @@ import Control.Lens.TH
 import Control.Monad.IO.Class
 import Data.Default
 import Data.Dependent.Map
-import Data.IORef 
 import Data.JSString (pack)
 import GHCJS.Foreign.Callback
 import GHCJS.Types
 import Reflex.Dom 
 import Reflex.Host.Class
-import System.IO.Unsafe 
 
 import qualified Data.Map as Map 
 
