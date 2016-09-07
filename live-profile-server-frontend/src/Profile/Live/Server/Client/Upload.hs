@@ -270,7 +270,7 @@ uploadFileWidget token UploadConfig{..} uf = do
           finishedE <- widgetHoldEvent' $ processChunk <$> leftmost [nextE, startE]
           let nextE = fforMaybe finishedE $ \n -> let 
                 n' = n + uploadConcurrentChunks
-                in if n' > fromIntegral totalChunks then Nothing 
+                in if n' >= fromIntegral totalChunks then Nothing 
                    else Just n'
         return $ const 1 <$> finishedE
 

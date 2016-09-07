@@ -3,3 +3,4 @@
 events.pipe
 live-profile-test-app.eventlog
 live-profile-server-backend/import
+live-profile-server-backend/upload

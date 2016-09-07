@@ -33,3 +33,4 @@ doMigrations strength = do
     migrateVinyl (Proxy :: Proxy Conn.Connection)
     migrateVinyl (Proxy :: Proxy Session)
   Auth.ensureAdmin strength "admin" "admin" "admin@localhost"
+  Upload.sanitizeFileUploadChunks

@@ -98,8 +98,8 @@ postChunkEndpoint i n chbytes token = do
   when (BS.length bs > fromIntegral uploadFileInfoChunkSize) $ 
     throw400 $ "Wrong chunk size, greater (" <> showt (BS.length bs)
       <> ") than declared (" <> showt uploadFileInfoChunkSize <> ")"
-  when (fromIntegral n > uploadFileChunksNum ui) $ 
-    throw400 $ "Too much chunks, received " <> showt n <> " is more than needed "
+  when (fromIntegral n >= uploadFileChunksNum ui) $ 
+    throw400 $ "Too much chunks, received " <> showt (n + 1) <> " is more than needed "
       <> showt (uploadFileChunksNum ui)
 
   runDB $ writeUploadFileChunk uploadConfigFolder i n bs 

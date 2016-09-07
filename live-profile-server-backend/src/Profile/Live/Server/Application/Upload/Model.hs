@@ -14,7 +14,7 @@ Portability : Portable
 module Profile.Live.Server.Application.Upload.Model where
 
 import Control.DeepSeq
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Control.Monad.IO.Class 
 import Data.Aeson.WithField
 import Database.Persist.Sql 
@@ -151,6 +151,9 @@ isUploadFileFinished i = do
   where 
   isFinished ui@UploadFileInfo{..} = do 
     ns <- getUploadFileChunksCount i
+    when (ns >=  uploadFileChunksNum ui) $ do 
+      x <- getUploadFileChunks i
+      liftIO $ print x 
     return $ ns >= uploadFileChunksNum ui
 
 -- | Glue all chunks in single file
@@ -160,16 +163,47 @@ finishFileUpload :: MonadIO m
   -> UploadFileInfo -- ^ Info about upload file
   -> SqlPersistT m ()
 finishFileUpload destFolder i UploadFileInfo{..} = do
-  let filename = destFolder </> uploadFileInfoName
-  liftIO $ whenM (doesFileExist filename) $ removeFile filename
+  filename <- chooseFreeName $ destFolder </> uploadFileInfoName
   ns <- getUploadFileChunks i 
   liftIO $ withFile filename AppendMode $ \h -> do 
     mapM_ (writeChunk h) ns 
   mapM_ deleteChunk ns 
-  where 
+  where
+  -- If file exists, choose name like "myfile (42)"
+  chooseFreeName filename = liftIO $ do
+    isExists <- doesFileExist filename
+    if isExists then go 1
+      else return filename
+    where 
+    go :: Int -> IO FilePath
+    go n = do
+      let filename' = filename ++ " (" ++ show n ++ ")"
+      isExists <- doesFileExist filename'
+      if isExists then go (n+1)
+        else return filename'
+
   writeChunk h (_, chunkFilename) = do 
     bs <- BS.readFile chunkFilename
     bs `deepseq` BS.hPut h bs 
     removeFile chunkFilename
   deleteChunk (n, _) = do 
     deleteBy $ UploadFileChunkUnique (toKey i) n
+
+-- | Check if chunks of unfinished uploads are deleted and if so,
+-- cleanups DB from garbage.
+sanitizeFileUploadChunks :: MonadIO m 
+  => SqlPersistT m ()
+sanitizeFileUploadChunks = do 
+  ids <- selectKeysList ([] :: [Filter UploadFileImpl]) []
+  mapM_ sanitize ids
+  where 
+  sanitize i = do 
+    chunks <- getUploadFileChunks (fromKey i) 
+    chunksExists <- liftIO $ mapM (doesFileExist . snd) chunks
+    let notExisted = fmap snd $ filter (not . fst) $ zip chunksExists chunks
+    mapM_ (removeChunk i . fst) notExisted
+
+    let allDeleted = and $ fmap not chunksExists
+    when allDeleted $ deleteUploadFile (fromKey i) 
+  removeChunk i n = do 
+    deleteBy $ UploadFileChunkUnique i n
