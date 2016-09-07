@@ -51,6 +51,7 @@ import Profile.Live.Server.Client.EventLog
 import Profile.Live.Server.Client.Pagination
 import Profile.Live.Server.Client.Router
 import Profile.Live.Server.Client.Upload
+import Profile.Live.Server.Client.Upload.Input
 import Profile.Live.Server.Client.Utils
 
 type SessPerm s = MToken '[ 'PermConcat ( 'PermLabel s) ( 'PermLabel "session")]
@@ -141,18 +142,18 @@ sessionsWidget :: forall t m . MonadWidget t m
   -> Id Connection -- ^ Connection we want to view sessions to 
   -> m (Route t m)
 sessionsWidget token backW conn = do 
-  --debugUploadFile
+  debugUploadFile
   
   header "Sessions"
-  (backE, connectE, locImportE) <- centered $ buttonGroup $ do 
+  (backE, connectE, uploadE) <- centered $ buttonGroup $ do 
     backE <- blueButton "Back"
     connectE <- fmap (const conn) <$> blueButton "Connect"
-    locImportE <- fmap (const conn) <$> blueButton "Local import"
-    return (backE, connectE, locImportE)
+    uploadE <- fmap (const conn) <$> blueButton "Upload"
+    return (backE, connectE, uploadE)
 
   connectedE <- connectRequest connectE 
-  importedE <- localImportRequest locImportE
-
+  --importedE <- localImportRequest locImportE
+  uploadedE <- uploadWidget token defaultUploadConfig uploadE
   importChangeE <- importWidget
 
   rec 
@@ -161,7 +162,9 @@ sessionsWidget token backW conn = do
           , const () <$> disconnectedE
           , const () <$> deletedE
           , importChangeE
-          , importedE]
+          --, importedE
+          , uploadedE
+          ]
     sessEvent <- renderListReload (Just 10) renderSession requestSessions reloadE
 
     let disconnectE = fmapMaybe getSessionDisconnect sessEvent

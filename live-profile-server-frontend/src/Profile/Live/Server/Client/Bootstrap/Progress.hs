@@ -24,6 +24,8 @@ module Profile.Live.Server.Client.Bootstrap.Progress(
   , ProgressBar(..)
   , HasNowValue(..)
   , progressBar
+  , percentProgressBarEv
+  , percentProgressBar
   , debugProgressBar
   ) where 
 
@@ -142,5 +144,26 @@ constPercentProgress :: (Reflex t, Num a, Fractional a, PrintfArg a)
   -> ProgressConfig t a
 constPercentProgress a style striped = ProgressConfig 0 1.0 
   (constDyn a) style striped show2f
+  where
+  show2f = (<> "%") . printf "%.2f" . (*100)
+
+-- | Special config for percentage progress bar that listen to an event
+percentProgressBarEv :: (MonadWidget t m, Num a, Ord a, Fractional a, PrintfArg a, Show a)
+  => Event t a -- ^ Event that updates current value
+  -> ProgressStyle -- ^ Color style
+  -> Bool -- ^ Striped render
+  -> m (ProgressBar t a)
+percentProgressBarEv ea style striped = do
+  da <- holdDyn 0 ea
+  percentProgressBar da style striped
+
+-- | Special config for percentage progress bar
+percentProgressBar :: (MonadWidget t m, Num a, Ord a, Fractional a, PrintfArg a, Show a)
+  => Dynamic t a -- ^ Event that updates current value
+  -> ProgressStyle -- ^ Color style
+  -> Bool -- ^ Striped render
+  -> m (ProgressBar t a)
+percentProgressBar da style striped = do
+  progressBar $ ProgressConfig 0 1.0 da style striped show2f
   where
   show2f = (<> "%") . printf "%.2f" . (*100)

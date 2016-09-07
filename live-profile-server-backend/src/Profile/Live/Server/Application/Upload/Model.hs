@@ -13,14 +13,15 @@ Portability : Portable
 {-# LANGUAGE TemplateHaskell #-}
 module Profile.Live.Server.Application.Upload.Model where
 
+import Control.DeepSeq
+import Control.Monad (void)
 import Control.Monad.IO.Class 
 import Data.Aeson.WithField
-import Data.Maybe 
 import Database.Persist.Sql 
 import Database.Persist.TH
 import System.Directory
-import System.Directory.Tree 
 import System.FilePath 
+import System.IO 
 import Text.Read (readMaybe)
 
 import qualified Data.ByteString as BS 
@@ -38,6 +39,12 @@ UploadFileImpl
   size Word 
   chunkSize Word 
   UploadFileUnique name
+
+UploadFileChunk 
+  upload UploadFileImplId 
+  num ChunkNum
+  name FilePath
+  UploadFileChunkUnique upload num
 |]
 
 -- | Helper to convert into DB representation
@@ -74,17 +81,16 @@ insertUploadFile = fmap fromKey . insert . toUploadFileImpl
 
 -- | Delete upload file fby id
 deleteUploadFile :: MonadIO m => UploadId -> SqlPersistT m ()
-deleteUploadFile = delete . (toKey :: UploadId -> UploadFileImplId)
+deleteUploadFile = deleteCascade . (toKey :: UploadId -> UploadFileImplId)
 
 -- | Check whether the chunk of uploading file already exists
 isUploadFileChunkExists :: MonadIO m 
-  => FilePath -- ^ Folder that is a storage of chunks
-  -> UploadId -- ^ Id of uploading file
+  => UploadId -- ^ Id of uploading file
   -> ChunkNum -- ^ Number of chunk to check for
-  -> m Bool 
-isUploadFileChunkExists folder i n = do 
-  ns <- getUploadFileChunksNums folder i
-  return $ or $ (== n) <$> ns
+  -> SqlPersistT m Bool 
+isUploadFileChunkExists i n = do 
+  chunks <- count [UploadFileChunkUpload ==. toKey i, UploadFileChunkNum ==. n] 
+  return $ chunks /= 0
 
 -- | Extract chunk and upload ids from chunk filename
 parseChunkFileName :: FilePath -> Maybe (UploadId, ChunkNum)
@@ -101,78 +107,69 @@ encodeChunkFileName i n = show i ++ "_" ++ show n ++ ".chunk"
 
 -- | Get list of files that stores chunks for upload file
 getUploadFileChunks :: MonadIO m 
-  => FilePath -- ^ Folder that is a storage of chunks
-  -> UploadId -- ^ id of uploading
-  -> m [FilePath] -- ^ List of files with chunks
-getUploadFileChunks folder i = liftIO $ do 
-  (_ :/ tree) <- readDirectoryWith (const $ return ()) folder
-  case tree of 
-    Dir{..} -> return $ catMaybes $ extractFiles <$> contents
-    _ -> return []
-  where 
-  extractFiles d = case d of 
-    File{..} -> if show i `L.isPrefixOf` name 
-      then Just name 
-      else Nothing
-    _ -> Nothing
+  => UploadId -- ^ id of uploading
+  -> SqlPersistT m [(ChunkNum, FilePath)] -- ^ List of files with chunks
+getUploadFileChunks i = do 
+  res <- selectList [UploadFileChunkUpload ==. toKey i] [Asc UploadFileChunkNum]
+  let getNumAndPath = \(Entity _ UploadFileChunk{..}) -> (uploadFileChunkNum, uploadFileChunkName)
+  return $ getNumAndPath <$> res
 
 -- | Get list of files that stores chunks for upload file
 getUploadFileChunksNums :: MonadIO m 
-  => FilePath -- ^ Folder that is a storage of chunks
-  -> UploadId -- ^ id of uploading
-  -> m [ChunkNum] -- ^ List of files with chunks
-getUploadFileChunksNums folder i = do 
-  ns <- getUploadFileChunks folder i
-  let ns' = catMaybes $ parseChunkFileName <$> ns
-  return $ snd <$> ns'
+  => UploadId -- ^ id of uploading
+  -> SqlPersistT m [ChunkNum] -- ^ List of files with chunks
+getUploadFileChunksNums  i = do 
+  res <- selectList [UploadFileChunkUpload ==. toKey i] [Asc UploadFileChunkNum]
+  return $ uploadFileChunkNum . entityVal <$> res
 
--- | Writing down upload chunk
+-- | Get list of files that stores chunks for upload file
+getUploadFileChunksCount :: MonadIO m 
+  => UploadId -- ^ id of uploading
+  -> SqlPersistT m Int -- ^ Count of chunks registered
+getUploadFileChunksCount i = do 
+  count [UploadFileChunkUpload ==. toKey i] 
+
+-- | Writing down upload chunk and put record about it into DB
 writeUploadFileChunk :: MonadIO m 
   => FilePath -- ^ Folder that is a storage of chunks
   -> UploadId -- ^ Id of uploading file
   -> ChunkNum -- ^ Number of chunk to check for
   -> BS.ByteString -- ^ Content of chunk 
-  -> m ()
-writeUploadFileChunk folder i n bs = liftIO $ do 
+  -> SqlPersistT m ()
+writeUploadFileChunk folder i n bs = do
   let filename = folder </> encodeChunkFileName i n
-  BS.writeFile filename bs 
+  liftIO $ BS.writeFile filename bs 
+  void . insert $ UploadFileChunk (toKey i) n filename
 
 -- | Check wether the upload is finished
 isUploadFileFinished :: MonadIO m 
-  => FilePath -- ^ Folder that is a storage of chunks
-  -> UploadId -- ^ Id of uploading file
+  => UploadId -- ^ Id of uploading file
   -> SqlPersistT m Bool
-isUploadFileFinished folder i = do 
+isUploadFileFinished i = do 
   minfo <- readUploadFileInfo i
   maybe (return False) isFinished minfo
   where 
   isFinished ui@UploadFileInfo{..} = do 
-    ns <- getUploadFileChunksNums folder i
-    return $ length (L.nub ns) >= uploadFileChunksNum ui
+    ns <- getUploadFileChunksCount i
+    return $ ns >= uploadFileChunksNum ui
 
 -- | Glue all chunks in single file
 finishFileUpload :: MonadIO m 
-  => FilePath -- ^ Folder that is a storage of chunks
-  -> FilePath -- ^ Folder where a finished file is placed
+  => FilePath -- ^ Folder where a finished file is placed
   -> UploadId -- ^ Id of uploading file
+  -> UploadFileInfo -- ^ Info about upload file
   -> SqlPersistT m ()
-finishFileUpload folder destFolder i = do 
-  minfo <- readUploadFileInfo i 
-  whenJust minfo $ \UploadFileInfo{..} -> do 
-    let filename = destFolder </> uploadFileInfoName
-    liftIO $ whenM (doesFileExist filename) $ removeFile filename
-    ns <- getUploadFileChunks folder i 
-    liftIO $ mapM_ (writeChunk filename) ns 
+finishFileUpload destFolder i UploadFileInfo{..} = do
+  let filename = destFolder </> uploadFileInfoName
+  liftIO $ whenM (doesFileExist filename) $ removeFile filename
+  ns <- getUploadFileChunks i 
+  liftIO $ withFile filename AppendMode $ \h -> do 
+    mapM_ (writeChunk h) ns 
+  mapM_ deleteChunk ns 
   where 
-  writeChunk filename chunkName = do 
-    bs <- BS.readFile (folder </> chunkName)
-    BS.appendFile filename bs 
-
--- | Delete all chunks of specific uploading
-deleteUploadFileChunks :: MonadIO m 
-  => FilePath -- ^ Folder that is a storage of chunks
-  -> UploadId -- ^ Id of uploading file to delete
-  -> m ()
-deleteUploadFileChunks folder i = liftIO $ do 
-  ns <- getUploadFileChunks folder i
-  mapM_ removeFile ns
+  writeChunk h (_, chunkFilename) = do 
+    bs <- BS.readFile chunkFilename
+    bs `deepseq` BS.hPut h bs 
+    removeFile chunkFilename
+  deleteChunk (n, _) = do 
+    deleteBy $ UploadFileChunkUnique (toKey i) n

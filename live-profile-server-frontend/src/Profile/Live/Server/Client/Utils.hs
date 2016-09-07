@@ -12,6 +12,7 @@ Portability : Portable
 module Profile.Live.Server.Client.Utils(
     header
   , danger
+  , info
   , centered
   , whenJust
   , periodical
@@ -21,8 +22,11 @@ module Profile.Live.Server.Client.Utils(
   , widgetHoldEvent'
   , foldEvent
   , approxEq
+  , traceEventWidget
+  , traceDynWidget
   ) where 
 
+import Control.Monad 
 import Control.Monad.IO.Class
 import Data.IORef 
 import Data.Time 
@@ -37,6 +41,10 @@ header = elAttr "h1" [("style", "text-align: center;")] . text
 -- | Helper to dislpay text in red well
 danger :: MonadWidget t m => String -> m ()
 danger = elClass "div" "alert alert-danger" . text 
+
+-- | Helper to dislpay text in blue well
+info :: MonadWidget t m => String -> m ()
+info = elClass "div" "alert alert-info" . text 
 
 -- | Create wrapper div that is centered
 centered :: MonadWidget t m => m a -> m a 
@@ -100,3 +108,13 @@ foldEvent f b0 e = do
 -- | Approximately equality for floatings
 approxEq :: (Num a, Ord a, Fractional a) => a -> a -> Bool 
 approxEq a b = abs (a - b) < 0.00001
+
+-- | Display contents of value in info panel
+traceEventWidget :: (Show a, MonadWidget t m) => Event t a -> m ()
+traceEventWidget e = void . widgetHold (pure ()) $ info . show <$> e
+
+-- | Display contents of value in info panel
+traceDynWidget :: (Show a, MonadWidget t m) => Dynamic t a -> m ()
+traceDynWidget d = do
+  d' <- mapDyn (info . show) d 
+  void . dyn $ d'

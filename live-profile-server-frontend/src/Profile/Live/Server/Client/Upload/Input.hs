@@ -14,6 +14,7 @@ TODO: pull request this to reflex-dom-contrib
 {-# LANGUAGE RecursiveDo #-}
 module Profile.Live.Server.Client.Upload.Input(
     UploadFileConfig(..)
+  , defaultUploadFileConfig
   , UploadFile(..)
   , uploadFileInput
   , debugUploadFile
@@ -48,11 +49,12 @@ defaultUploadFileConfig :: Reflex t => UploadFileConfig t
 defaultUploadFileConfig = UploadFileConfig (constDyn mempty)
 
 -- | Info about file being uploaded
-data UploadFile = UploadFile {
+data UploadFile t m = UploadFile {
   uploadFileName :: !String -- ^ Selected file name
 , uploadFileType :: !String -- ^ Example: 'text/plain'
 , uploadFileSize :: !Word -- ^ Total size of file
-, uploadFileContent :: !BS.ByteString -- ^ Bytestring for content
+, uploadFileContent :: !(Event t (Word, Word) -> m (Event t BS.ByteString)) 
+  -- ^ Getter of file contents, takes start index and end index (not including the end)
 } deriving (Generic)
 
 -- | Typed wrapper around js FileReader object 
@@ -73,10 +75,12 @@ foreign import javascript unsafe "$r = $1.type;"
   js_fileType :: File -> IO JSString
 foreign import javascript unsafe "$r = $1.size;" 
   js_fileSize :: File -> IO Word
+foreign import javascript unsafe "$r = $1.slice($2, $3);"
+  js_fileSlice :: File -> Word -> Word -> IO File
 
 -- | Single file input that returns lazy byte string of file content
 uploadFileInput :: forall t m . MonadWidget t m => UploadFileConfig t
-  -> m (Event t UploadFile)
+  -> m (Event t (UploadFile t m))
 uploadFileInput UploadFileConfig{..} = do 
   i <- genId
   let inputId = "fileinput" ++ show i 
@@ -86,27 +90,49 @@ uploadFileInput UploadFileConfig{..} = do
   let filesEvent = updated _fileInput_value
   performEventAsync (readUploadFiles <$> filesEvent)
   where 
-  readUploadFiles :: [File] -> (UploadFile -> IO ()) ->  WidgetHost m ()
+  readUploadFiles :: [File] -> (UploadFile t m -> IO ()) ->  WidgetHost m ()
   readUploadFiles files consume = mapM_ (readUploadFile consume) files
 
-  readUploadFile :: (UploadFile -> IO ()) -> File -> WidgetHost m ()
+  readUploadFile :: (UploadFile t m -> IO ()) -> File -> WidgetHost m ()
   readUploadFile consume f = liftIO $ do
-    reader <- js_newFileReader
-    rec c <- syncCallback1 ContinueAsync (onload c)
-    js_readerOnload reader c 
-    js_readAsArrayBuffer reader f
+    -- reader <- js_newFileReader
+    -- rec c <- syncCallback1 ContinueAsync (onload c)
+    -- js_readerOnload reader c 
+    -- js_readAsArrayBuffer reader f
+    -- where 
+    -- onload c e = finally (releaseCallback c) $ do
+    --   name <- getName f 
+    --   ftype <- js_fileType f 
+    --   size <- js_fileSize f
+    --   contentsBuff <- js_onLoadEventArrayBuffer $ OnLoadEvent e 
+    --   consume $ UploadFile {
+    --       uploadFileName = name 
+    --     , uploadFileType = unpack ftype
+    --     , uploadFileSize = size
+    --     , uploadFileContent = toByteString 0 Nothing $ createFromArrayBuffer contentsBuff
+    --     }
+
+    name <- getName f 
+    ftype <- js_fileType f 
+    size <- js_fileSize f
+    consume $ UploadFile {
+        uploadFileName = name 
+      , uploadFileType = unpack ftype
+      , uploadFileSize = size
+      , uploadFileContent = contentGetter
+      }
     where 
-    onload c e = finally (releaseCallback c) $ do
-      name <- getName f 
-      ftype <- js_fileType f 
-      size <- js_fileSize f
+    contentGetter sliceE = performEventAsync $ ffor sliceE 
+      $ \(start, end) consumeChunk -> liftIO $ do
+        f' <- js_fileSlice f start end 
+        reader <- js_newFileReader
+        rec c <- syncCallback1 ContinueAsync (onload c consumeChunk)
+        js_readerOnload reader c 
+        js_readAsArrayBuffer reader f'
+
+    onload c consumeChunk e = finally (releaseCallback c) $ do
       contentsBuff <- js_onLoadEventArrayBuffer $ OnLoadEvent e 
-      consume $ UploadFile {
-          uploadFileName = name 
-        , uploadFileType = unpack ftype
-        , uploadFileSize = size
-        , uploadFileContent = toByteString 0 Nothing $ createFromArrayBuffer contentsBuff
-        }
+      consumeChunk $ toByteString 0 Nothing $ createFromArrayBuffer contentsBuff
 
 -- | Showcase for upload file input widget
 debugUploadFile :: forall t m . MonadWidget t m => m ()
@@ -115,10 +141,15 @@ debugUploadFile = do
   _ <- widgetHold (pure ()) $ renderFile <$> fileE
   return ()
   where 
-  renderFile :: UploadFile -> m ()
+  renderFile :: UploadFile t m -> m ()
   renderFile UploadFile{..} = el "div" $ do 
     el "p" $ text $ "Name: " <> uploadFileName
     el "p" $ text $ "Type: " <> uploadFileType
     el "p" $ text $ "Size: " <> show uploadFileSize
-    el "p" $ text $ "First bytes: " <> show (BS.take 10 uploadFileContent)
+
+    initE <- getPostBuild
+    contentE <- uploadFileContent $ const (0, 10) <$> initE
+    _ <- widgetHold (pure ()) $ ffor contentE $ \bs ->
+      el "p" $ text $ "First bytes: " <> show bs 
+    return ()
  

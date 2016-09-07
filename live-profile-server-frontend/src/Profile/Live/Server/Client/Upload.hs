@@ -28,6 +28,7 @@ module Profile.Live.Server.Client.Upload(
 import Control.Monad.Trans.Either
 import Data.Aeson.Unit 
 import Data.Aeson.WithField 
+import Data.Foldable 
 import Data.Monoid 
 import Data.Proxy 
 import Data.Text (Text)
@@ -40,9 +41,15 @@ import Servant.API.Auth.Token.Pagination
 import Servant.Client 
 
 import qualified Data.ByteString as BS 
+import qualified Data.Map as M 
 
 import Profile.Live.Server.API.Upload 
 import Profile.Live.Server.Client.Async
+import Profile.Live.Server.Client.Bootstrap.Button
+import Profile.Live.Server.Client.Bootstrap.Form
+import Profile.Live.Server.Client.Bootstrap.Modal
+import Profile.Live.Server.Client.Bootstrap.Panel
+import Profile.Live.Server.Client.Bootstrap.Progress
 import Profile.Live.Server.Client.Upload.Input
 import Profile.Live.Server.Client.Utils
 
@@ -112,11 +119,11 @@ data UploadConfig = UploadConfig {
 defaultUploadConfig :: UploadConfig
 defaultUploadConfig = UploadConfig {
     uploadConcurrentChunks = 5
-  , uploadChunkSize = 4 * 1024 -- 4 Kb
+  , uploadChunkSize = 1024 * 1024 -- 1 Mb
   }
 
 -- | Convert upload file to meta info required by server
-toUploadFileInfo :: Word -> UploadFile -> UploadFileInfo
+toUploadFileInfo :: Word -> UploadFile t m -> UploadFileInfo
 toUploadFileInfo chunkSize UploadFile{..} = UploadFileInfo {
     uploadFileInfoName = uploadFileName
   , uploadFileInfoType = Just uploadFileType 
@@ -124,18 +131,75 @@ toUploadFileInfo chunkSize UploadFile{..} = UploadFileInfo {
   , uploadFileInfoChunkSize = chunkSize
   }
 
--- | Upload widget that uploads given file to server. Returns
--- event that fires when the uploading is finished.
-uploadWidget :: forall t m . MonadWidget t m 
+-- | Full widget with modal and support for multiple file uploading
+uploadWidget :: forall t m a . MonadWidget t m 
   => SimpleToken -- ^ Authorisation token
   -> UploadConfig -- ^ Configuration of the widget
-  -> UploadFile -- ^ File we want to upload
+  -> Event t a -- ^ When to show modal to user
+  -> m (Event t ()) -- ^ Fires when an upload was finished 
+uploadWidget token cfg showE = do 
+  uploadE <- uploadChooserModal showE
+  widgetHoldEvent' $ uploadFileWidget token cfg <$> uploadE
+
+  -- TODO: Below is failed attempt to handler dynamic list of uploadings 
+  -- uploadE <- uploadChooserModal showE
+  -- rec
+  --   let mapActionE = leftmost [
+  --           Left <$> uploadE
+  --         , Right <$> cancelMapE
+  --         ]
+  --   dynUploadMap <- foldDyn addOrRemove mempty mapActionE
+  --   traceDynWidget dynUploadMap
+  --   dynCancelMap <- list dynUploadMap singleUpload 
+  --   dynCancelMap' <- mergeMap `mapDyn` dynCancelMap
+  --   let cancelMapE = switchPromptlyDyn dynCancelMap'
+
+  -- return $ const () <$> cancelMapE
+  -- where
+  -- addOrRemove :: Either UploadFile (M.Map String ()) -> M.Map String UploadFile -> M.Map String UploadFile
+  -- addOrRemove v m = case v of 
+  --   Left uf -> M.insert (uploadFileName uf) uf m
+  --   Right del -> foldl' (flip M.delete) m $ M.keys del
+
+  -- singleUpload :: Dynamic t UploadFile -> m (Event t ())
+  -- singleUpload dynFile = do 
+  --   dynUploader <- uploadFileWidget token cfg `mapDyn` dynFile
+  --   cancelE <- dyn dynUploader
+  --   return $ coincidence cancelE
+
+-- | Widget with modal to choose file from user file system
+uploadChooserModal :: forall t m a. MonadWidget t m 
+  => Event t a -- ^ When to show modal to user
+  -> m (Event t (UploadFile t m))
+uploadChooserModal openE = do 
+  modal <- simpleModal cfg body
+  return $ fforMaybe (modalValue modal) id
+  where 
+  cfg = defaultSimpleModalCfg 
+    & modalCfg . modalCfgShow .~ fmap (const ()) openE
+    & modalCfg . modalCfgTitle .~ "Choose .eventlog file"
+  body = horizontalForm $ do
+    uploadE <- uploadFileInput defaultUploadFileConfig
+    let defFile = UploadFile {
+            uploadFileName = ""
+          , uploadFileType = ""
+          , uploadFileSize = 0
+          , uploadFileContent = const $ return never 
+          }
+    holdDyn defFile uploadE
+
+-- | Upload widget that uploads given file to server. Returns
+-- event that fires when the uploading is finished.
+uploadFileWidget :: forall t m . MonadWidget t m 
+  => SimpleToken -- ^ Authorisation token
+  -> UploadConfig -- ^ Configuration of the widget
+  -> UploadFile t m -- ^ File we want to upload
   -> m (Event t ())
-uploadWidget token UploadConfig{..} uf = do 
+uploadFileWidget token UploadConfig{..} uf = do 
   uploadE <- initialCheck (uploadFileName uf)
   rec 
     percentE <- widgetHoldEvent' $ sendingWidget cancelE <$> uploadE
-    let cancelE = never
+    cancelE <- renderUpload percentE
   return $ fforMaybe percentE $ \p -> if p `approxEq` 1.0 then Just () else Nothing
   where 
     uploadFileGetReq :: Event t String -> m (Event t (Either String (WithId UploadId UploadFileInfo)))
@@ -181,8 +245,7 @@ uploadWidget token UploadConfig{..} uf = do
 
       -- Convert number of chunks to percent of file
       toProgress :: Word -> Double
-      toProgress n = (fromIntegral $ n * uploadFileInfoChunkSize) / 
-        (fromIntegral . BS.length $ uploadFileContent uf)
+      toProgress n = (fromIntegral n) / (fromIntegral totalChunks)
 
       -- Converts output of chunksWatcher into progress value
       progressWatcher :: m (Event t Double)
@@ -194,7 +257,8 @@ uploadWidget token UploadConfig{..} uf = do
       -- total count of chunks uploaded
       chunksWatcher :: m (Event t Word)
       chunksWatcher =  do 
-        workerE <- mapM chunkWorker [1 .. uploadConcurrentChunks]
+        let maxWorkers = min (fromIntegral totalChunks) uploadConcurrentChunks
+        workerE <- mapM chunkWorker [0 .. maxWorkers-1]
         foldEvent (+) 0 $ mergeWith (+) workerE
 
       -- Process single chunk worker and returns event that fires event 
@@ -208,22 +272,33 @@ uploadWidget token UploadConfig{..} uf = do
                 n' = n + uploadConcurrentChunks
                 in if n' > fromIntegral totalChunks then Nothing 
                    else Just n'
-        foldEvent (const (+1)) 0 finishedE
+        return $ const 1 <$> finishedE
 
       -- Slice file to get required chunk part
-      getChunkContents :: ChunkNum -> BS.ByteString -> BS.ByteString
-      getChunkContents n = BS.take (fromIntegral uploadFileInfoChunkSize)
-        . BS.drop (fromIntegral $ n * uploadFileInfoChunkSize) 
+      getChunkContents :: ChunkNum -> m (Event t BS.ByteString)
+      getChunkContents n = do 
+        initE <- getPostBuild
+        let chunkBounds = (n * uploadFileInfoChunkSize, (n + 1) * uploadFileInfoChunkSize)
+        uploadFileContent uf $ const chunkBounds <$> initE
 
       -- Process single chunk and fire when finished
       processChunk :: ChunkNum -> m (Event t ChunkNum)
       processChunk n = do 
-        let bs = getChunkContents n $ uploadFileContent uf
-        initialE <- getPostBuild
-        checkE <- uploadChunkGetReq (const (i, n) <$> initialE)
-        let alreadyE = fforMaybe checkE $ \b -> if b then Just () else Nothing
-        let failE = fforMaybe checkE $ \b -> if b then Nothing else Just (i, n, bs)
-        uploadedE <- uploadChunkPostReq failE
-        return $ leftmost $ fmap (const n) <$> [alreadyE, uploadedE]
+        chunkE <- getChunkContents n
+        widgetHoldEvent' $ ffor chunkE $ \bs -> do 
+          initialE <- getPostBuild
+          checkE <- uploadChunkGetReq (const (i, n) <$> initialE)
+          let alreadyE = fforMaybe checkE $ \b -> if b then Just () else Nothing
+          let failE = fforMaybe checkE $ \b -> if b then Nothing else Just (i, n, bs)
+          uploadedE <- uploadChunkPostReq failE
+          return $ leftmost $ fmap (const n) <$> [alreadyE, uploadedE]
 
+    -- | Render upload progress and return event that fires when user wants to cancel
+    -- the upload
+    renderUpload :: Event t Double -> m (Event t ())
+    renderUpload progressE = panel . panelBody $ do
+      el "p" $ elAttr "span" [("style", "font-weight: bold;")] $ 
+        text $ "Uploading " ++ uploadFileName uf
+      _ <- percentProgressBarEv progressE ProgressInfo False
+      redButton "Cancel"
 

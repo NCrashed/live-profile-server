@@ -12,6 +12,7 @@ module Profile.Live.Server.Application.Upload(
   ) where
 
 import Control.Monad
+import Control.Monad.IO.Class
 import Data.Aeson.Unit 
 import Data.Aeson.WithField
 import Data.Maybe 
@@ -22,6 +23,7 @@ import Servant.API.Auth.Token
 import Servant.API.Auth.Token.Pagination
 import Servant.Server 
 import Servant.Server.Auth.Token 
+import System.Directory
 
 import qualified Data.ByteString as BS
 
@@ -78,7 +80,7 @@ getChunkEndpoint :: UploadId -- ^ Id of uploading file
 getChunkEndpoint i n token = do 
   guardAuthToken token
   UploadConfig{..} <- getsConfig configUpload
-  res <- isUploadFileChunkExists uploadConfigFolder i n 
+  res <- runDB $ isUploadFileChunkExists i n 
   return $ OnlyField res 
 
 postChunkEndpoint :: UploadId -- ^ Id of uploading file
@@ -89,6 +91,7 @@ postChunkEndpoint :: UploadId -- ^ Id of uploading file
 postChunkEndpoint i n chbytes token = do 
   guardAuthToken token 
   UploadConfig{..} <- getsConfig configUpload
+  liftIO $ createDirectoryIfMissing True uploadConfigFolder
   ui@UploadFileInfo{..} <- runDB404 "uploading" $ readUploadFileInfo i
   
   let bs = fromChunkBytes chbytes
@@ -99,14 +102,15 @@ postChunkEndpoint i n chbytes token = do
     throw400 $ "Too much chunks, received " <> showt n <> " is more than needed "
       <> showt (uploadFileChunksNum ui)
 
-  writeUploadFileChunk uploadConfigFolder i n bs 
+  runDB $ writeUploadFileChunk uploadConfigFolder i n bs 
 
-  isFinished <- runDB $ isUploadFileFinished uploadConfigFolder i
+  isFinished <- runDB $ isUploadFileFinished i
   when isFinished $ do 
+    liftIO $ createDirectoryIfMissing True uploadConfigSuccess
     runDB $ do
-      finishFileUpload uploadConfigFolder uploadConfigSuccess i 
+      minfo <- readUploadFileInfo i 
+      whenJust minfo $ finishFileUpload uploadConfigSuccess i 
       deleteUploadFile i
-    deleteUploadFileChunks uploadConfigFolder i
 
   return Unit 
 
@@ -136,7 +140,7 @@ getChunksEndpoint :: UploadId -- ^ uploading id the chunks requested for
 getChunksEndpoint  i mpage msize token = do 
   guardAuthToken token 
   UploadConfig{..} <- getsConfig configUpload
-  chunkNums <- getUploadFileChunksNums uploadConfigFolder i 
+  chunkNums <- runDB $ getUploadFileChunksNums i 
   pagination mpage msize $ \page size -> do
     let chunkNums' = take (fromIntegral size) . drop (fromIntegral $ page * size) $ chunkNums
     let total = length chunkNums
