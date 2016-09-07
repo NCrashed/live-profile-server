@@ -139,7 +139,12 @@ uploadWidget :: forall t m a . MonadWidget t m
   -> m (Event t ()) -- ^ Fires when an upload was finished 
 uploadWidget token cfg showE = do 
   uploadE <- uploadChooserModal showE
-  widgetHoldEvent' $ uploadFileWidget token cfg <$> uploadE
+  rec 
+    let actionE = leftmost [Right <$> uploadE, Left <$> finshedE]
+    finshedE <- widgetHoldEvent' (uploaderWidget <$> actionE)
+  return finshedE
+  where 
+  uploaderWidget = either (const $ return never) $ uploadFileWidget token cfg
 
   -- TODO: Below is failed attempt to handler dynamic list of uploadings 
   -- uploadE <- uploadChooserModal showE
@@ -200,7 +205,8 @@ uploadFileWidget token UploadConfig{..} uf = do
   rec 
     percentE <- widgetHoldEvent' $ sendingWidget cancelE <$> uploadE
     cancelE <- renderUpload percentE
-  return $ fforMaybe percentE $ \p -> if p `approxEq` 1.0 then Just () else Nothing
+  let finishedE = fforMaybe percentE $ \p -> if p `approxEq` 1.0 then Just () else Nothing
+  return $ leftmost [finishedE, cancelE]
   where 
     uploadFileGetReq :: Event t String -> m (Event t (Either String (WithId UploadId UploadFileInfo)))
     uploadFileGetReq = asyncAjax (\f -> uploadFileGet f (Just $ Token token))
@@ -209,6 +215,11 @@ uploadFileWidget token UploadConfig{..} uf = do
     uploadFilePostReq e = simpleRequest e $ \ufi -> do 
       OnlyField i <- uploadFilePost ufi (Just $ Token token)
       return $ WithField i ufi
+
+    uploadFileDelReq :: Event t UploadId -> m (Event t ())
+    uploadFileDelReq e = simpleRequest e $ \i -> do 
+      _ <- uploadFileDelete i (Just $ Token token)
+      return ()
 
     uploadChunkGetReq :: Event t (UploadId, ChunkNum) -> m (Event t Bool)
     uploadChunkGetReq e = simpleRequest e $ \(i, n) -> do 
@@ -239,6 +250,7 @@ uploadFileWidget token UploadConfig{..} uf = do
       -> WithId UploadId UploadFileInfo -- ^ Meta info about upload
       -> m (Event t Double) -- ^ Returns progress of upload
     sendingWidget cancelE (WithField i ui@UploadFileInfo{..}) = do 
+      _ <- uploadFileDelReq =<< delay (fromIntegral (2 :: Int)) (const i <$> cancelE)
       widgetHoldEvent progressWatcher $ const (return never) <$> cancelE
       where
       totalChunks = uploadFileChunksNum ui 
@@ -301,4 +313,3 @@ uploadFileWidget token UploadConfig{..} uf = do
         text $ "Uploading " ++ uploadFileName uf
       _ <- percentProgressBarEv progressE ProgressInfo False
       redButton "Cancel"
-

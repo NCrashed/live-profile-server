@@ -24,6 +24,7 @@ module Profile.Live.Server.Client.Utils(
   , approxEq
   , traceEventWidget
   , traceDynWidget
+  , strutWidgetY
   ) where 
 
 import Control.Monad 
@@ -118,3 +119,8 @@ traceDynWidget :: (Show a, MonadWidget t m) => Dynamic t a -> m ()
 traceDynWidget d = do
   d' <- mapDyn (info . show) d 
   void . dyn $ d'
+
+-- | Invisible div that fills vertical space 
+strutWidgetY :: MonadWidget t m => String -- ^ Size parameter, ex "10px"
+  -> m ()
+strutWidgetY size = elAttr "div" [("style", "margin-top: "++ size ++";")] $ return ()

@@ -79,9 +79,15 @@ getFileUploadByName name = do
 insertUploadFile :: MonadIO m => UploadFileInfo -> SqlPersistT m UploadId
 insertUploadFile = fmap fromKey . insert . toUploadFileImpl
 
--- | Delete upload file fby id
+-- | Delete upload file by id
 deleteUploadFile :: MonadIO m => UploadId -> SqlPersistT m ()
-deleteUploadFile = deleteCascade . (toKey :: UploadId -> UploadFileImplId)
+deleteUploadFile i = do
+  let i' = toKey i ::  UploadFileImplId
+  chunks <- fmap snd <$> getUploadFileChunks i
+  liftIO $ mapM_ removeFileIfExists chunks
+  deleteCascade i' 
+  where 
+  removeFileIfExists f = whenM (doesFileExist f) $ removeFile f
 
 -- | Check whether the chunk of uploading file already exists
 isUploadFileChunkExists :: MonadIO m 

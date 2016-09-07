@@ -142,8 +142,6 @@ sessionsWidget :: forall t m . MonadWidget t m
   -> Id Connection -- ^ Connection we want to view sessions to 
   -> m (Route t m)
 sessionsWidget token backW conn = do 
-  debugUploadFile
-  
   header "Sessions"
   (backE, connectE, uploadE) <- centered $ buttonGroup $ do 
     backE <- blueButton "Back"
@@ -152,8 +150,9 @@ sessionsWidget token backW conn = do
     return (backE, connectE, uploadE)
 
   connectedE <- connectRequest connectE 
-  --importedE <- localImportRequest locImportE
+  strutWidgetY "10px"
   uploadedE <- uploadWidget token defaultUploadConfig uploadE
+  importedE <- localImportRequest $ const conn <$> uploadedE
   importChangeE <- importWidget
 
   rec 
@@ -162,7 +161,7 @@ sessionsWidget token backW conn = do
           , const () <$> disconnectedE
           , const () <$> deletedE
           , importChangeE
-          --, importedE
+          , importedE
           , uploadedE
           ]
     sessEvent <- renderListReload (Just 10) renderSession requestSessions reloadE
@@ -283,7 +282,7 @@ sessionsWidget token backW conn = do
 
     renderImports :: [EventLogImport] -> m (Event t ImportAction)
     renderImports es = do 
-      elAttr "div" [("style", "margin-top: 10px;")] $ return ()
+      strutWidgetY "10px"
       cancelEvents <- mapM renderImport es 
       return $ leftmost cancelEvents
 
